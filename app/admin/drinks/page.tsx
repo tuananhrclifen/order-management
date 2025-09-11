@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import type { Drink, Event } from '@/lib/types'
+import { formatPriceVND } from '@/lib/format'
 import AuthGate from '@/components/AuthGate'
 
 export default function DrinksPage() {
@@ -131,12 +132,19 @@ function DrinksInner() {
         {!loading && drinks.length === 0 && <p className="text-sm text-slate-600">No drinks yet.</p>}
         <ul className="divide-y bg-white border rounded">
           {drinks.map(d => (
-            <li key={d.id} className="p-3 flex items-center justify-between">
-              <div>
-                <p className="font-medium">{d.name}</p>
-                <p className="text-xs text-slate-600">${d.price.toFixed(2)} {d.category ? `• ${d.category}` : ''}</p>
+            <li key={d.id} className="p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium truncate">{d.name}</p>
+                <p className="text-xs text-slate-600">{formatPriceVND(d.price)} {d.category ? `• ${d.category}` : ''}</p>
               </div>
-              <span className="text-xs border rounded px-2 py-1">{d.is_available ? 'Available' : 'Unavailable'}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs border rounded px-2 py-1">{d.is_available ? 'Available' : 'Unavailable'}</span>
+                <button
+                  onClick={async () => { await supabase.from('drinks').delete().eq('id', d.id); if (eventId) await loadDrinks(eventId) }}
+                  className="text-xs px-2 py-1 border rounded text-red-600 hover:bg-red-50"
+                  title="Delete"
+                >Delete</button>
+              </div>
             </li>
           ))}
         </ul>

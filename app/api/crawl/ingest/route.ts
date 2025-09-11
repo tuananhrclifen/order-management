@@ -95,6 +95,33 @@ function extractFromNextData(nextData: any): NormalizedDrink[] {
   })
 }
 
+function extractGrabFoodItems(nextData: any): NormalizedDrink[] {
+  const results: NormalizedDrink[] = []
+  for (const { node } of walk(nextData)) {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) continue
+    // Common GrabFood fields observed:
+    // name, priceInMinorUnit, description, imageUrl or images[0].url, isSoldOut/available
+    const name = extractName(node)
+    const price = extractPriceNumber(node)
+    const soldOut = node?.isSoldOut === true || node?.available === false || node?.status === 'UNAVAILABLE'
+    if (!name || price === null || soldOut) continue
+    let image_url = extractImage(node)
+    if (!image_url && Array.isArray(node?.images) && node.images.length) {
+      image_url = node.images[0]?.url || node.images[0]?.imageUrl || null
+    }
+    const description = typeof node?.description === 'string' ? node.description : null
+    results.push({ name, price, image_url, description })
+  }
+  // Deduplicate by name+price
+  const seen = new Set<string>()
+  return results.filter(d => {
+    const key = `${d.name}|${d.price}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { url, eventId } = await req.json()
@@ -124,7 +151,10 @@ export async function POST(req: NextRequest) {
     if (!nextData) {
       return NextResponse.json({ error: 'Could not locate embedded data on page' }, { status: 422 })
     }
-    const items = extractFromNextData(nextData)
+    const host = (() => { try { return new URL(url).host } catch { return '' } })()
+    const items = host.includes('grab.com')
+      ? (extractGrabFoodItems(nextData) || [])
+      : (extractFromNextData(nextData) || [])
     // Basic sanity filter: names with price > 0, skip extremely high duplicates
     const normalized: NormalizedDrink[] = items
       .filter(i => i.price && i.price > 0 && i.name.length <= 120)
@@ -174,4 +204,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
   }
 }
-
