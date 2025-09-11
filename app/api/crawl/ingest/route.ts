@@ -123,6 +123,38 @@ function extractGrabFoodItems(nextData: any): NormalizedDrink[] {
   })
 }
 
+function extractShopeeFoodItems(nextData: any): NormalizedDrink[] {
+  const results: NormalizedDrink[] = []
+  for (const { node, parents } of walk(nextData)) {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) continue
+    const name = extractName(node)
+    const price = extractPriceNumber(node)
+    const unavailable = node?.isSoldOut === true || node?.soldOut === true || node?.available === false || node?.isAvailable === false || node?.is_active === false
+    if (!name || price === null || unavailable) continue
+    const description = typeof node?.description === 'string' ? node.description : null
+    let image_url = extractImage(node)
+    if (!image_url && Array.isArray(node?.images) && node.images.length) {
+      image_url = node.images[0]?.url || node.images[0]?.imageUrl || null
+    }
+    // Try to infer category name from parent-like objects
+    let category: string | null = null
+    for (let i = parents.length - 1; i >= 0; i--) {
+      const p = parents[i]
+      const pName = extractName(p) || p?.categoryName || p?.nameCategory || p?.title || null
+      if (typeof pName === 'string' && pName && pName !== name) { category = pName; break }
+    }
+    results.push({ name, price, image_url, description, category })
+  }
+  // Deduplicate by name+price
+  const seen = new Set<string>()
+  return results.filter(d => {
+    const key = `${d.name}|${d.price}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function parseAllowed(): string[] {
   const raw = process.env.NEXT_PUBLIC_ADMIN_EMAILS || ''
   return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
@@ -171,7 +203,9 @@ export async function POST(req: NextRequest) {
     const host = (() => { try { return new URL(url).host } catch { return '' } })()
     const items = host.includes('grab.com')
       ? (extractGrabFoodItems(nextData) || [])
-      : (extractFromNextData(nextData) || [])
+      : (host.includes('shopeefood') || host.includes('foody.vn'))
+        ? (extractShopeeFoodItems(nextData) || [])
+        : (extractFromNextData(nextData) || [])
     // Basic sanity filter: names with price > 0, skip extremely high duplicates
     const normalized: NormalizedDrink[] = items
       .filter(i => i.price && i.price > 0 && i.name.length <= 120)
@@ -193,19 +227,33 @@ export async function POST(req: NextRequest) {
       is_available: true,
     }))
 
+    // Duplicate detection against DB by (lower(trim(name)), price) per event
+    const { data: existing, error: existErr } = await svc
+      .from('drinks')
+      .select('name, price')
+      .eq('event_id', eventId)
+      .limit(5000)
+    if (existErr) return NextResponse.json({ error: existErr.message }, { status: 500 })
+    const norm = (s: string) => s.trim().toLowerCase()
+    const existingSet = new Set<string>()
+    for (const r of existing || []) {
+      const k = `${norm((r as any).name)}|${Number((r as any).price)}`
+      existingSet.add(k)
+    }
+    const toInsert = rows.filter(r => !existingSet.has(`${norm(r.name)}|${Number(r.price)}`))
+
     // Insert in chunks to avoid payload limits
     const chunkSize = 100
     let inserted = 0
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize)
+    for (let i = 0; i < toInsert.length; i += chunkSize) {
+      const chunk = toInsert.slice(i, i + chunkSize)
       const { error } = await svc.from('drinks').insert(chunk)
       if (error) {
-        // Stop on first failure, but return context
         return NextResponse.json({
           error: 'Insert failed',
           reason: error.message,
           attempted: i,
-          sample: rows.slice(0, Math.min(5, rows.length))
+          sample: toInsert.slice(0, Math.min(5, toInsert.length))
         }, { status: 500 })
       }
       inserted += chunk.length
@@ -215,7 +263,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       event: { id: ev.id, name: ev.name },
       inserted,
-      sample: rows.slice(0, Math.min(5, rows.length))
+      skipped: rows.length - toInsert.length,
+      sample: toInsert.slice(0, Math.min(5, toInsert.length))
     })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })

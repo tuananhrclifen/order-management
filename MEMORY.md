@@ -55,7 +55,13 @@ This note captures current status, decisions, and next actions so we can resume 
 - P2: Category grouping and search on Order page. (Done)
 - P3: RLS policies + server actions for secure writes. (Done)
 - P4: Export shopping list and basic admin order status workflow. (Done)
-- P5: Improve importer (duplicate detection; source-specific mappers).
+- P5: Improve importer (duplicate detection; source-specific mappers). (Done)
+
+## Importer Improvements (P5)
+- Duplicate detection during import: skip existing items by (lower(trim(name)), price, event).
+- Source-specific mappers:
+  - GrabFood: filters sold-out; extracts images and category.
+  - ShopeeFood/Foody: adds mapper with sold-out handling; falls back to generic parser when needed.
 
 ## Admin Ops (P4)
 - Orders page: filter by event + status; change status via dropdown or advance button.
