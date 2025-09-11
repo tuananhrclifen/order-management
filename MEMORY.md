@@ -8,6 +8,7 @@ This note captures current status, decisions, and next actions so we can resume 
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `NEXT_PUBLIC_ADMIN_EMAILS`
+  - `SUPABASE_SERVICE_ROLE_KEY`
 - Supabase schema applied (events, drinks, orders + indexes).
 
 ## Implemented Features
@@ -15,40 +16,40 @@ This note captures current status, decisions, and next actions so we can resume 
 - Auth: Supabase magic-link; admin allowlist via `NEXT_PUBLIC_ADMIN_EMAILS`.
 - Admin UI:
   - Events: create/list.
-  - Drinks: add/list, VND price formatting, delete button, import-from-URL form.
-  - Orders: basic table view of recent orders.
+  - Drinks: add/list, VND price formatting, import-from-URL form, utilities (Migrate Images to Storage, Delete ALL drinks by event).
+  - Orders: filter by event/status, update status (advance or select), and export CSV.
 - Public Order UI:
-  - Card grid (image, name, VND price) with green “+” to add quantity 1.
-  - Requires entering user name once; uses quick add for orders.
+  - Card grid (image, name, price) with quantity +/- controls and a Cart Summary that is always visible (sticky on large screens).
+  - Search by name/category; grouped by category.
+  - Enter name once; single submit creates all line items.
 - Crawl/Import API:
-  - `POST /api/crawl/ingest` with `{ url, eventId }`.
-  - Parses embedded `__NEXT_DATA__`; GrabFood-specific parser for better accuracy; generic fallback.
+  - `POST /api/crawl/ingest` with `{ url, eventId }` (admin-only, token required).
+  - Host-specific mappers: GrabFood and ShopeeFood/Foody; generic fallback using embedded `__NEXT_DATA__`.
+  - Duplicate detection per event by normalized name + price; skips existing.
+  - Image handling: read common JSON fields; HTML <img alt> fallback; uploads images to Supabase Storage bucket `menu-images` (public) and stores the public URL.
 
 ## How To Use (quick)
 - Admin → Events: create an active event.
-- Admin → Drinks: select event; paste menu URL; click Import; optionally add manually.
-- Public → Order: select event, enter your name, tap “+” to add items.
+- Admin → Drinks: select event; paste menu URL; click Import (images auto-upload to Storage).
+- Admin → Drinks → Utilities: Migrate Images (for existing items), Delete ALL drinks for the selected event.
+- Admin → Orders: filter, update status, and export shopping list CSV.
+- Public → Order: select event, enter your name, use +/- to add items, review Cart Summary, submit.
 
 ## Known Gaps / Next Steps
-1) Order UX
-- Add +/- quantity controls and a small cart summary before submit.
-- Show category grouping headers; add search/filter.
+1) Realtime & operations
+- Realtime updates for orders (Supabase Realtime) to reflect new/updated statuses without manual refresh.
+- Admin bulk actions (multi-select status updates) and simple analytics.
 
-2) Data integrity & security
-- Add Supabase RLS policies and move privileged writes to server actions (service role) where appropriate.
-- De-duplicate on import by (name, price, event); optional fuzzy matching.
-- Optional: add `currency` on events; use per-event formatting (VND by default).
+2) Media & performance
+- Image optimization via Next/Image with remotePatterns for Storage; optional CDN tuning.
+- Basic caching for menu pages; guardrails/rate limiting on crawler frequency; robots.txt compliance.
 
-3) Operations & realtime
-- Real-time updates for orders (SSE or Supabase Realtime) with admin status workflow (pending → confirmed → completed).
-- Export shopping list (CSV/PDF) and basic analytics.
+3) Data model & UX
+- Optional: add currency on events; per-event formatting and symbols.
+- Optional: fuzzy duplicate detection on import (Levenshtein or token-based).
 
-4) Media & performance
-- Image optimization (Next/Image) and CDN.
-- Basic caching for menus; guardrails on crawler frequency & robots.txt compliance.
-
-5) Testing
-- Unit/integration tests for import, price parsing, and order flow; minimal E2E for the happy path.
+4) Testing
+- Unit/integration tests for import, price parsing, RLS-protected flows, and order lifecycle; minimal E2E.
 
 ## Short Roadmap (priority)
 - P1: Quantity +/- + cart summary on Order page. (Done)
@@ -56,26 +57,13 @@ This note captures current status, decisions, and next actions so we can resume 
 - P3: RLS policies + server actions for secure writes. (Done)
 - P4: Export shopping list and basic admin order status workflow. (Done)
 - P5: Improve importer (duplicate detection; source-specific mappers). (Done)
-
-## Importer Improvements (P5)
-- Duplicate detection during import: skip existing items by (lower(trim(name)), price, event).
-- Source-specific mappers:
-  - GrabFood: filters sold-out; extracts images and category.
-  - ShopeeFood/Foody: adds mapper with sold-out handling; falls back to generic parser when needed.
-- Fallback image scraping: if an item's image URL is missing, parse page <img> tags and match by alt text to attach a likely image.
- - Storage uploads: for new items, download image and upload to Supabase Storage bucket `menu-images` (public); dedupe by SHA-1 content hash; reuse if already uploaded; replace `image_url` with public Storage URL.
-
-## UX Tweaks
-- Order page shows Cart Summary in a sticky side panel on large screens (and inline on small), so it’s always visible.
-
-## Admin Ops (P4)
-- Orders page: filter by event + status; change status via dropdown or advance button.
-- Export CSV: aggregated quantities per drink for selected event and optional status filter.
-- API `GET /api/orders/export?eventId=...&status=...`: requires admin token; returns CSV with columns Drink, Category, Price, Quantity, Total.
+- P6: Realtime order updates + admin bulk actions.
+- P7: Image optimization (Next/Image) + caching and rate limiting.
+- P8: Tests coverage for importer and order flow.
 
 ## Security Changes (P3)
 - Added RLS policies:
-  - Events: public can read active; admins can full access.
+  - Events: public can read active; admins full access.
   - Drinks: public can read available for active events; admins full access.
   - Orders: public can insert for active events; admins can read/update/delete.
 - Added `admin_users` table + `is_admin()` Postgres function; admins are synced from `NEXT_PUBLIC_ADMIN_EMAILS`.
@@ -83,6 +71,27 @@ This note captures current status, decisions, and next actions so we can resume 
 - Ingest API now requires admin token and uses service role for inserts.
 - New server client `getSupabaseService()`; added `SUPABASE_SERVICE_ROLE_KEY` to env.
 
+## Admin Ops (P4)
+- Orders page: filter by event + status; change status via dropdown or advance button.
+- Export CSV: aggregated quantities per drink for selected event and optional status filter.
+- API `GET /api/orders/export?eventId=...&status=...`: requires admin token; returns CSV with columns Drink, Category, Price, Quantity, Total.
+
+## Admin Utilities
+- API `POST /api/admin/images/migrate` (admin-only): migrate external drink images to Supabase Storage and update image_url.
+- API `POST /api/admin/drinks/clear` (admin-only): delete all drinks for an event (orders linked to those drinks are removed via cascade).
+
+## Importer Improvements (P5)
+- Duplicate detection during import: skip existing items by (lower(trim(name)), price, event).
+- Source-specific mappers:
+  - GrabFood: filters sold-out; extracts images and category.
+  - ShopeeFood/Foody: mapper with sold-out handling; fallback to generic when needed.
+- Fallback image scraping: if an item's image URL is missing, parse page <img> tags and match by alt text to attach a likely image.
+- Storage uploads: for new items, download image and upload to Supabase Storage bucket `menu-images` (public); dedupe by SHA-1 content hash; reuse if already uploaded; replace `image_url` with public Storage URL.
+
+## UX Tweaks
+- Order page shows Cart Summary in a sticky side panel on large screens (and inline on small), so it's always visible.
+
 ## Notes
 - Price formatting uses VND style (no decimals) via `formatPriceVND`.
 - Importer respects public HTML only; be mindful of site terms.
+
