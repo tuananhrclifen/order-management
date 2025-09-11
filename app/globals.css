@@ -2,19 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg: #0f172a;
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold;
+  }
 }
 
-html, body {
-  height: 100%;
-}
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-md font-semibold text-sm transition-all duration-300 ease-in-out;
+  }
 
-body {
-  color: #0b1221;
-}
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700;
+  }
 
-.container {
-  max-width: 1000px;
+  .btn-secondary {
+    @apply bg-slate-200 text-slate-800 hover:bg-slate-300;
+  }
 }
-
