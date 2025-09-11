@@ -24,6 +24,8 @@ function DrinksInner() {
   const [importUrl, setImportUrl] = useState('')
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState<string | null>(null)
+  const [opsLoading, setOpsLoading] = useState(false)
+  const [opsMsg, setOpsMsg] = useState<string | null>(null)
 
   const selectedEvent = useMemo(() => events.find(e => e.id === eventId) || null, [events, eventId])
 
@@ -91,6 +93,62 @@ function DrinksInner() {
     }
   }
 
+  const migrateImages = async () => {
+    setOpsMsg(null)
+    setError(null)
+    if (!eventId) return setError('Select an event')
+    try {
+      setOpsLoading(true)
+      const { data: session } = await supabase.auth.getSession()
+      const token = session.session?.access_token
+      const res = await fetch('/api/admin/images/migrate', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ eventId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Migration failed')
+      setOpsMsg(`Migrated ${data.migrated} images; skipped ${data.skipped}.`)
+      await loadDrinks(eventId)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setOpsLoading(false)
+    }
+  }
+
+  const clearAllDrinks = async () => {
+    setOpsMsg(null)
+    setError(null)
+    if (!eventId) return setError('Select an event')
+    const ack = window.prompt('Type DELETE to remove ALL drinks for this event. This also removes related orders. Type DELETE to confirm:')
+    if (ack !== 'DELETE') return
+    try {
+      setOpsLoading(true)
+      const { data: session } = await supabase.auth.getSession()
+      const token = session.session?.access_token
+      const res = await fetch('/api/admin/drinks/clear', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ eventId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Delete failed')
+      setOpsMsg(`Deleted ${data.deleted} drinks for the event.`)
+      await loadDrinks(eventId)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setOpsLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -123,13 +181,24 @@ function DrinksInner() {
         <h2 className="font-semibold">Import From URL</h2>
         <p className="text-xs text-slate-600">Paste a restaurant/menu URL (e.g., GrabFood). We will attempt to extract items and add them to the selected event.</p>
         {importMsg && <p className="text-sm text-green-700">{importMsg}</p>}
-        {error && !importMsg && <p className="text-sm text-red-600">{error}</p>}
+        {error && !importMsg && !opsMsg && <p className="text-sm text-red-600">{error}</p>}
         <div className="grid sm:grid-cols-5 gap-3">
           <input className="px-3 py-2 border rounded sm:col-span-4" placeholder="https://..." value={importUrl} onChange={e=>setImportUrl(e.target.value)} />
           <button disabled={importing} className="px-3 py-2 bg-slate-900 text-white rounded text-sm" >{importing ? 'Importing...' : 'Import'}</button>
         </div>
         <p className="text-xs text-slate-500">Note: Respect website terms. Only import data you have rights to use.</p>
       </form>
+
+      <div className="grid gap-3 max-w-2xl p-4 border rounded bg-white">
+        <h2 className="font-semibold">Utilities</h2>
+        {opsMsg && <p className="text-sm text-green-700">{opsMsg}</p>}
+        {error && !importMsg && !opsMsg && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex flex-wrap gap-3">
+          <button onClick={migrateImages} disabled={opsLoading || !eventId} className="px-3 py-2 border rounded text-sm hover:bg-slate-50">{opsLoading ? 'Working...' : 'Migrate Images to Storage'}</button>
+          <button onClick={clearAllDrinks} disabled={opsLoading || !eventId} className="px-3 py-2 border rounded text-sm text-red-600 hover:bg-red-50">{opsLoading ? 'Working...' : 'Delete ALL Drinks'}</button>
+        </div>
+        <p className="text-xs text-slate-500">Delete ALL will also remove related orders via cascade. This cannot be undone.</p>
+      </div>
 
       <div className="space-y-2">
         <h2 className="font-semibold">Menu</h2>
