@@ -137,7 +137,6 @@ export default function OrderPage() {
     const { error } = await supabase.from('orders').insert(rows)
     setSubmitting(false)
     if (error) return setError(error.message)
-
     setMessage('Order submitted!')
     setCart({})
   }
@@ -267,7 +266,7 @@ export default function OrderPage() {
                 disabled={submitting || cartItems.length === 0 || !form.person_name.trim()}
                 className={`px-4 py-2 rounded text-white ${submitting || cartItems.length === 0 || !form.person_name.trim() ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
               >
-                {submitting ? 'Submitting…' : 'Submit Order'}
+                {submitting ? 'Submitting...' : 'Submit Order'}
               </button>
               {cartItems.length > 0 && (
                 <button
@@ -280,50 +279,7 @@ export default function OrderPage() {
           </div>
         </div>
       </div>
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Cart Summary</h2>
-          <div className="text-sm text-slate-600">{totals.totalQty} items</div>
-        </div>
-
-        {cartItems.length === 0 ? (
-          <p className="text-sm text-slate-500">Your cart is empty. Add some drinks.</p>
-        ) : (
-          <div className="space-y-2">
-            {cartItems.map(it => (
-              <div key={it.id} className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="truncate">{it.drink.name}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-sm text-slate-600">x{it.quantity}</div>
-                  <div className="font-medium">{formatPriceVND(it.lineTotal)}</div>
-                </div>
-              </div>
-            ))}
-            <div className="pt-2 mt-2 border-t flex items-center justify-between">
-              <div className="text-sm text-slate-600">Total</div>
-              <div className="text-lg font-semibold">{formatPriceVND(totals.totalPrice)}</div>
-            </div>
-          </div>
-        )}
-
-        <div className="pt-2 flex items-center gap-3">
-          <button
-            onClick={submitCart}
-            disabled={submitting || cartItems.length === 0 || !form.person_name.trim()}
-            className={`px-4 py-2 rounded text-white ${submitting || cartItems.length === 0 || !form.person_name.trim() ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-          >
-            {submitting ? 'Submitting…' : 'Submit Order'}
-          </button>
-          {cartItems.length > 0 && (
-            <button
-              onClick={() => setCart({})}
-              disabled={submitting}
-              className="px-3 py-2 rounded border text-slate-700 hover:bg-slate-50"
-            >Clear</button>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
+
