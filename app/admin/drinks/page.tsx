@@ -1,0 +1,108 @@
+"use client";
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
+import type { Drink, Event } from '@/lib/types'
+import AuthGate from '@/components/AuthGate'
+
+export default function DrinksPage() {
+  return (
+    <AuthGate>
+      <DrinksInner />
+    </AuthGate>
+  )
+}
+
+function DrinksInner() {
+  const [events, setEvents] = useState<Event[]>([])
+  const [eventId, setEventId] = useState<string>('')
+  const [drinks, setDrinks] = useState<Drink[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [form, setForm] = useState({ name: '', price: '', category: '', description: '' })
+
+  const selectedEvent = useMemo(() => events.find(e => e.id === eventId) || null, [events, eventId])
+
+  const loadEvents = async () => {
+    const { data } = await supabase.from('events').select('*').eq('is_active', true).order('created_at', { ascending: false })
+    setEvents(data || [])
+    if (!eventId && data && data.length) setEventId(data[0].id)
+  }
+
+  const loadDrinks = async (evId: string) => {
+    setLoading(true)
+    const { data, error } = await supabase.from('drinks').select('*').eq('event_id', evId).order('created_at', { ascending: false })
+    if (error) setError(error.message)
+    setDrinks(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadEvents() }, [])
+  useEffect(() => { if (eventId) loadDrinks(eventId) }, [eventId])
+
+  const addDrink = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!eventId) return setError('Select an event')
+    const payload = {
+      event_id: eventId,
+      name: form.name,
+      price: Number(form.price),
+      category: form.category || null,
+      description: form.description || null,
+      is_available: true,
+    }
+    const { error } = await supabase.from('drinks').insert(payload)
+    if (error) return setError(error.message)
+    setForm({ name: '', price: '', category: '', description: '' })
+    await loadDrinks(eventId)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Drinks</h1>
+        <p className="text-sm text-slate-600">Add drinks to an event menu.</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-sm">Event</label>
+        <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="px-3 py-2 border rounded">
+          {events.map(ev => (
+            <option key={ev.id} value={ev.id}>{ev.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <form onSubmit={addDrink} className="grid gap-3 max-w-xl p-4 border rounded bg-white">
+        <h2 className="font-semibold">Add Drink</h2>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <input className="px-3 py-2 border rounded" placeholder="Name" required value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} />
+        <input className="px-3 py-2 border rounded" placeholder="Price" inputMode="decimal" required value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} />
+        <div className="grid sm:grid-cols-2 gap-3">
+          <input className="px-3 py-2 border rounded" placeholder="Category (optional)" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} />
+          <input className="px-3 py-2 border rounded" placeholder="Description (optional)" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} />
+        </div>
+        <button className="px-3 py-2 bg-slate-900 text-white rounded text-sm w-fit">Add</button>
+      </form>
+
+      <div className="space-y-2">
+        <h2 className="font-semibold">Menu</h2>
+        {loading && <p className="text-sm">Loading...</p>}
+        {!loading && drinks.length === 0 && <p className="text-sm text-slate-600">No drinks yet.</p>}
+        <ul className="divide-y bg-white border rounded">
+          {drinks.map(d => (
+            <li key={d.id} className="p-3 flex items-center justify-between">
+              <div>
+                <p className="font-medium">{d.name}</p>
+                <p className="text-xs text-slate-600">${d.price.toFixed(2)} {d.category ? `• ${d.category}` : ''}</p>
+              </div>
+              <span className="text-xs border rounded px-2 py-1">{d.is_available ? 'Available' : 'Unavailable'}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
