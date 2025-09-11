@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServer } from '@/lib/supabaseServer'
 import { getSupabaseService } from '@/lib/supabaseService'
+import { createHash } from 'crypto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -304,6 +305,88 @@ export async function POST(req: NextRequest) {
       existingSet.add(k)
     }
     const toInsert = rows.filter(r => !existingSet.has(`${norm(r.name)}|${Number(r.price)}`))
+
+    // Upload images to Storage for new rows only
+    const BUCKET = 'menu-images'
+
+    async function ensureBucket() {
+      const { error } = await svc.storage.createBucket(BUCKET, { public: true })
+      if (error && !String(error.message || '').toLowerCase().includes('already exists')) {
+        // Ignore duplicate bucket errors
+        throw error
+      }
+    }
+
+    function pickExt(contentType: string | null, srcUrl: string | null): string {
+      const ct = (contentType || '').toLowerCase()
+      if (ct.includes('png')) return 'png'
+      if (ct.includes('webp')) return 'webp'
+      if (ct.includes('gif')) return 'gif'
+      if (ct.includes('jpeg') || ct.includes('jpg')) return 'jpg'
+      if (srcUrl) {
+        const m = srcUrl.toLowerCase().match(/\.(png|webp|gif|jpe?g)(\?|#|$)/)
+        if (m) return m[1] === 'jpeg' ? 'jpg' : m[1]
+      }
+      return 'jpg'
+    }
+
+    async function fetchBuffer(url: string): Promise<{ buffer: Buffer; contentType: string | null } | null> {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            'accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+          },
+          // Some CDNs block missing referrers; leave default
+        })
+        if (!res.ok) return null
+        const ab = await res.arrayBuffer()
+        const buffer = Buffer.from(ab)
+        const ct = res.headers.get('content-type')
+        return { buffer, contentType: ct }
+      } catch {
+        return null
+      }
+    }
+
+    async function uploadImageForRow(row: typeof rows[number]): Promise<string | null> {
+      const src = row.image_url
+      if (!src) return null
+      const got = await fetchBuffer(src)
+      if (!got) return null
+      const hash = createHash('sha1').update(got.buffer).digest('hex')
+      const ext = pickExt(got.contentType, src)
+      const path = `${eventId}/${hash}.${ext}`
+      const from = svc.storage.from(BUCKET)
+      // Try upload (skip if exists)
+      const { error: upErr } = await from.upload(path, got.buffer, { contentType: got.contentType || undefined, upsert: false })
+      if (upErr && !String(upErr.message || '').toLowerCase().includes('exists')) {
+        // If upload failed for other reasons, fallback to original src
+        return null
+      }
+      const { data } = from.getPublicUrl(path)
+      return data.publicUrl
+    }
+
+    if (toInsert.length > 0) {
+      try { await ensureBucket() } catch (e) {
+        // If bucket creation fails, proceed without uploads
+      }
+      // Limit concurrency to avoid timeouts
+      const concurrency = 5
+      let index = 0
+      async function worker() {
+        while (index < toInsert.length) {
+          const i = index++
+          const row = toInsert[i]
+          if (row.image_url && !row.image_url.includes('/storage/v1/object/public/')) {
+            const uploaded = await uploadImageForRow(row)
+            if (uploaded) row.image_url = uploaded
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(concurrency, toInsert.length) }, () => worker()))
+    }
 
     // Insert in chunks to avoid payload limits
     const chunkSize = 100
