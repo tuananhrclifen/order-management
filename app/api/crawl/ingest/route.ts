@@ -50,7 +50,21 @@ function extractPriceNumber(obj: any): number | null {
 }
 
 function extractImage(obj: any): string | null {
-  return obj?.imageUrl || obj?.imgUrl || obj?.photoUrl || obj?.photoHref || obj?.image || null
+  const direct = obj?.imageUrl || obj?.imgUrl || obj?.photoUrl || obj?.photoHref || obj?.image || null
+  if (typeof direct === 'string' && direct) return direct
+  // Common array field
+  if (Array.isArray(obj?.images) && obj.images.length) {
+    const c = obj.images[0]
+    const src = c?.url || c?.imageUrl || c?.src || null
+    if (typeof src === 'string' && src) return src
+  }
+  // Nested image object
+  const nested = obj?.imageObject || obj?.imageObj || obj?.photo || null
+  if (nested) {
+    const src = nested?.url || nested?.src || nested?.imageUrl || null
+    if (typeof src === 'string' && src) return src
+  }
+  return null
 }
 
 function extractName(obj: any): string | null {
@@ -160,6 +174,50 @@ function parseAllowed(): string[] {
   return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 }
 
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function extractImgTags(html: string): { alt: string; src: string }[] {
+  const tags: { alt: string; src: string }[] = []
+  const imgRe = /<img\b[^>]*>/gi
+  let m: RegExpExecArray | null
+  while ((m = imgRe.exec(html))) {
+    const tag = m[0]
+    const altM = tag.match(/\balt\s*=\s*(["'])(.*?)\1/i)
+    const srcM = tag.match(/\b(?:data-src|src)\s*=\s*(["'])(.*?)\1/i)
+    const alt = altM ? altM[2] : ''
+    const src = srcM ? srcM[2] : ''
+    if (src) tags.push({ alt, src })
+  }
+  return tags
+}
+
+function resolveUrlMaybe(u: string | null | undefined, base: string): string | null {
+  if (!u) return null
+  try { return new URL(u, base).toString() } catch { return null }
+}
+
+function fillMissingImagesFromHtml(html: string, pageUrl: string, items: NormalizedDrink[]) {
+  if (!items.length) return
+  const tags = extractImgTags(html)
+  if (tags.length === 0) return
+  for (const it of items) {
+    if (it.image_url) continue
+    const name = it.name.trim().toLowerCase()
+    // Find a tag with alt containing the name (or vice versa) as a heuristic
+    let best: { alt: string; src: string } | null = null
+    for (const t of tags) {
+      const alt = (t.alt || '').trim().toLowerCase()
+      if (!alt) continue
+      if (alt.includes(name) || name.includes(alt)) { best = t; break }
+    }
+    if (best) {
+      it.image_url = resolveUrlMaybe(best.src, pageUrl) || best.src
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { url, eventId } = await req.json()
@@ -210,6 +268,11 @@ export async function POST(req: NextRequest) {
     const normalized: NormalizedDrink[] = items
       .filter(i => i.price && i.price > 0 && i.name.length <= 120)
       .slice(0, 300)
+
+    // Fallback: try to fill missing images by scanning HTML <img alt="name" ...>
+    if (normalized.some(i => !i.image_url)) {
+      fillMissingImagesFromHtml(html, url, normalized)
+    }
 
     if (normalized.length === 0) {
       return NextResponse.json({ error: 'No menu items detected' }, { status: 422 })

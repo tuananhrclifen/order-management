@@ -62,6 +62,10 @@ This note captures current status, decisions, and next actions so we can resume 
 - Source-specific mappers:
   - GrabFood: filters sold-out; extracts images and category.
   - ShopeeFood/Foody: adds mapper with sold-out handling; falls back to generic parser when needed.
+ - Fallback image scraping: if an item's image URL is missing, parse page <img> tags and match by alt text to attach a likely image.
+
+## UX Tweaks
+- Order page shows Cart Summary in a sticky side panel on large screens (and inline on small), so it’s always visible.
 
 ## Admin Ops (P4)
 - Orders page: filter by event + status; change status via dropdown or advance button.

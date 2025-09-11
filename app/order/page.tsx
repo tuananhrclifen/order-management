@@ -184,52 +184,102 @@ export default function OrderPage() {
         </p>
       </div>
 
-      {loading && <p className="text-sm">Loading...</p>}
-      {!loading && filteredDrinks.length === 0 && (
-        <p className="text-sm text-slate-600">No items match your search.</p>
-      )}
-      {!loading && grouped.map(([category, items]) => (
-        <div key={category} className="space-y-3">
-          <h3 className="text-lg font-semibold text-slate-700">{category}</h3>
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {items.map(d => {
-              const qty = cart[d.id] || 0
-              return (
-                <div key={d.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border hover:shadow-sm">
-                  <div className="w-24 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
-                    {d.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={d.image_url} alt={d.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">No image</div>
-                    )}
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+        <div className="grid gap-4 order-2 xl:order-1">
+          {loading && <p className="text-sm">Loading...</p>}
+          {!loading && filteredDrinks.length === 0 && (
+            <p className="text-sm text-slate-600">No items match your search.</p>
+          )}
+          {!loading && grouped.map(([category, items]) => (
+            <div key={category} className="space-y-3">
+              <h3 className="text-lg font-semibold text-slate-700">{category}</h3>
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {items.map(d => {
+                  const qty = cart[d.id] || 0
+                  return (
+                    <div key={d.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border hover:shadow-sm">
+                      <div className="w-24 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+                        {d.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={d.image_url} alt={d.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">No image</div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{d.name}</p>
+                        <p className="text-slate-600 mt-2 font-semibold">{formatPriceVND(d.price)}</p>
+                      </div>
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          onClick={() => decrement(d.id)}
+                          className={`w-9 h-9 inline-flex items-center justify-center rounded-full border ${qty === 0 ? 'text-slate-300 border-slate-200 cursor-not-allowed' : 'text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                          aria-label={`Decrease ${d.name}`}
+                          disabled={qty === 0}
+                        >-</button>
+                        <span className="min-w-[1.5rem] text-center font-medium">{qty}</span>
+                        <button
+                          onClick={() => increment(d.id)}
+                          className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-xl hover:bg-emerald-600"
+                          aria-label={`Increase ${d.name}`}
+                        >+</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="order-1 xl:order-2">
+          <div className="grid gap-3 p-4 border rounded bg-white xl:sticky xl:top-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Cart Summary</h2>
+              <div className="text-sm text-slate-600">{totals.totalQty} items</div>
+            </div>
+
+            {cartItems.length === 0 ? (
+              <p className="text-sm text-slate-500">Your cart is empty. Add some drinks.</p>
+            ) : (
+              <div className="space-y-2">
+                {cartItems.map(it => (
+                  <div key={it.id} className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">{it.drink.name}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-slate-600">x{it.quantity}</div>
+                      <div className="font-medium">{formatPriceVND(it.lineTotal)}</div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{d.name}</p>
-                    <p className="text-slate-600 mt-2 font-semibold">{formatPriceVND(d.price)}</p>
-                  </div>
-                  <div className="ml-auto flex items-center gap-2">
-                    <button
-                      onClick={() => decrement(d.id)}
-                      className={`w-9 h-9 inline-flex items-center justify-center rounded-full border ${qty === 0 ? 'text-slate-300 border-slate-200 cursor-not-allowed' : 'text-slate-700 border-slate-300 hover:bg-slate-50'}`}
-                      aria-label={`Decrease ${d.name}`}
-                      disabled={qty === 0}
-                    >-</button>
-                    <span className="min-w-[1.5rem] text-center font-medium">{qty}</span>
-                    <button
-                      onClick={() => increment(d.id)}
-                      className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-xl hover:bg-emerald-600"
-                      aria-label={`Increase ${d.name}`}
-                    >+</button>
-                  </div>
+                ))}
+                <div className="pt-2 mt-2 border-t flex items-center justify-between">
+                  <div className="text-sm text-slate-600">Total</div>
+                  <div className="text-lg font-semibold">{formatPriceVND(totals.totalPrice)}</div>
                 </div>
-              )
-            })}
+              </div>
+            )}
+
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                onClick={submitCart}
+                disabled={submitting || cartItems.length === 0 || !form.person_name.trim()}
+                className={`px-4 py-2 rounded text-white ${submitting || cartItems.length === 0 || !form.person_name.trim() ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+              >
+                {submitting ? 'Submitting…' : 'Submit Order'}
+              </button>
+              {cartItems.length > 0 && (
+                <button
+                  onClick={() => setCart({})}
+                  disabled={submitting}
+                  className="px-3 py-2 rounded border text-slate-700 hover:bg-slate-50"
+                >Clear</button>
+              )}
+            </div>
           </div>
         </div>
-      ))}
-
-      <div className="grid gap-3 p-4 border rounded bg-white">
+      </div>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Cart Summary</h2>
           <div className="text-sm text-slate-600">{totals.totalQty} items</div>
