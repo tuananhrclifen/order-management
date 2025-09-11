@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServer } from '@/lib/supabaseServer'
+import { getSupabaseService } from '@/lib/supabaseService'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -122,9 +123,25 @@ function extractGrabFoodItems(nextData: any): NormalizedDrink[] {
   })
 }
 
+function parseAllowed(): string[] {
+  const raw = process.env.NEXT_PUBLIC_ADMIN_EMAILS || ''
+  return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { url, eventId } = await req.json()
+    // Require admin
+    const authz = req.headers.get('authorization') || ''
+    const m = authz.match(/^Bearer\s+(.+)$/i)
+    if (!m) return NextResponse.json({ error: 'Missing auth token' }, { status: 401 })
+    const token = m[1]
+    const anon = getSupabaseServer()
+    const { data: authData, error: authErr } = await anon.auth.getUser(token)
+    if (authErr || !authData?.user?.email) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    const email = authData.user.email.toLowerCase()
+    const allowed = parseAllowed()
+    if (!allowed.includes(email)) return NextResponse.json({ error: 'Not an admin' }, { status: 403 })
     if (!url || !eventId) {
       return NextResponse.json({ error: 'Missing url or eventId' }, { status: 400 })
     }
@@ -132,8 +149,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
     }
 
-    const supabase = getSupabaseServer()
-    const { data: ev, error: evErr } = await supabase.from('events').select('*').eq('id', eventId).single()
+    const svc = getSupabaseService()
+    const { data: ev, error: evErr } = await svc.from('events').select('*').eq('id', eventId).single()
     if (evErr || !ev) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
     const res = await fetch(url, {
@@ -181,7 +198,7 @@ export async function POST(req: NextRequest) {
     let inserted = 0
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize)
-      const { error } = await supabase.from('drinks').insert(chunk)
+      const { error } = await svc.from('drinks').insert(chunk)
       if (error) {
         // Stop on first failure, but return context
         return NextResponse.json({

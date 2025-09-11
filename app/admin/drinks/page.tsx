@@ -69,9 +69,14 @@ function DrinksInner() {
     if (!eventId) return setError('Select an event')
     try {
       setImporting(true)
+      const { data: session } = await supabase.auth.getSession()
+      const token = session.session?.access_token
       const res = await fetch('/api/crawl/ingest', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ url: importUrl, eventId })
       })
       const data = await res.json()

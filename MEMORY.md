@@ -51,13 +51,22 @@ This note captures current status, decisions, and next actions so we can resume 
 - Unit/integration tests for import, price parsing, and order flow; minimal E2E for the happy path.
 
 ## Short Roadmap (priority)
-- P1: Quantity +/- + cart summary on Order page.
-- P2: Category grouping and search on Order page.
-- P3: RLS policies + server actions for secure writes.
+- P1: Quantity +/- + cart summary on Order page. (Done)
+- P2: Category grouping and search on Order page. (Done)
+- P3: RLS policies + server actions for secure writes. (Done)
 - P4: Export shopping list and basic admin order status workflow.
 - P5: Improve importer (duplicate detection; source-specific mappers).
+
+## Security Changes (P3)
+- Added RLS policies:
+  - Events: public can read active; admins can full access.
+  - Drinks: public can read available for active events; admins full access.
+  - Orders: public can insert for active events; admins can read/update/delete.
+- Added `admin_users` table + `is_admin()` Postgres function; admins are synced from `NEXT_PUBLIC_ADMIN_EMAILS`.
+- New API `POST /api/admin/sync` writes admin emails via service role after sign-in.
+- Ingest API now requires admin token and uses service role for inserts.
+- New server client `getSupabaseService()`; added `SUPABASE_SERVICE_ROLE_KEY` to env.
 
 ## Notes
 - Price formatting uses VND style (no decimals) via `formatPriceVND`.
 - Importer respects public HTML only; be mindful of site terms.
-

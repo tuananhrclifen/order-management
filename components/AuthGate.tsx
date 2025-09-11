@@ -11,6 +11,7 @@ export default function AuthGate({ children }: Props) {
   const [email, setEmail] = useState('')
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [synced, setSynced] = useState<boolean>(false)
 
   const allowedAdmins = useMemo(() => {
     const raw = process.env.NEXT_PUBLIC_ADMIN_EMAILS || ''
@@ -34,6 +35,24 @@ export default function AuthGate({ children }: Props) {
       sub.subscription.unsubscribe()
     }
   }, [])
+
+  // Ensure admin email exists in DB for RLS via service route
+  useEffect(() => {
+    const doSync = async () => {
+      try {
+        setSynced(false)
+        const { data } = await supabase.auth.getSession()
+        const token = data.session?.access_token
+        const email = data.session?.user?.email?.toLowerCase()
+        if (!token || !email) return
+        if (!allowedAdmins.includes(email)) return
+        await fetch('/api/admin/sync', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      } finally {
+        setSynced(true)
+      }
+    }
+    doSync()
+  }, [sessionEmail, allowedAdmins])
 
   const isAdmin = useMemo(() => {
     if (!sessionEmail) return false
@@ -91,8 +110,7 @@ export default function AuthGate({ children }: Props) {
         <p className="text-sm text-slate-600">Signed in as {sessionEmail}</p>
         <button onClick={signOut} className="text-xs underline">Sign out</button>
       </div>
-      {children}
+      {!synced ? <div className="text-sm">Preparing admin access...</div> : children}
     </div>
   )
 }
-
