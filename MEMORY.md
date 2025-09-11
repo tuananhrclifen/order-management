@@ -54,8 +54,13 @@ This note captures current status, decisions, and next actions so we can resume 
 - P1: Quantity +/- + cart summary on Order page. (Done)
 - P2: Category grouping and search on Order page. (Done)
 - P3: RLS policies + server actions for secure writes. (Done)
-- P4: Export shopping list and basic admin order status workflow.
+- P4: Export shopping list and basic admin order status workflow. (Done)
 - P5: Improve importer (duplicate detection; source-specific mappers).
+
+## Admin Ops (P4)
+- Orders page: filter by event + status; change status via dropdown or advance button.
+- Export CSV: aggregated quantities per drink for selected event and optional status filter.
+- API `GET /api/orders/export?eventId=...&status=...`: requires admin token; returns CSV with columns Drink, Category, Price, Quantity, Total.
 
 ## Security Changes (P3)
 - Added RLS policies:
