@@ -14,7 +14,7 @@ export default function HomePage() {
           <span className="ml-3 text-white drop-shadow">Break</span>
         </h1>
         <p className="mt-6 max-w-xl text-sm sm:text-base text-white/85 animate-[fadeUpSmooth_1.4s_ease-out_.1s_both]">
-          Create events, build drink menus, and place orders effortlessly. Fresh, modern, and fast for your team.
+          Take a break and get your drink to fresh and clean before come back to work. Have a nice day!
         </p>
 
         <div className="mt-10 flex items-center gap-4 animate-[fadeUpSmooth_1.6s_ease-out_.15s_both]">
