@@ -27,6 +27,25 @@ export default function OrderPage() {
   const [tmap, setTmap] = useState<Record<string, string>>({})
   const [tloading, setTloading] = useState(false)
 
+  // Cache helpers for translations
+  const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7 // 7 days
+  const cacheKey = (evId: string, target: string) => `ddos.tmap.${evId || 'none'}.${target}`
+  const loadCache = (evId: string, target: string, sig: string): Record<string, string> | null => {
+    try {
+      const raw = localStorage.getItem(cacheKey(evId, target))
+      if (!raw) return null
+      const obj = JSON.parse(raw)
+      if (!obj || typeof obj !== 'object') return null
+      if (obj.sig !== sig) return null
+      if (typeof obj.ts !== 'number' || Date.now() - obj.ts > CACHE_TTL_MS) return null
+      if (!obj.map || typeof obj.map !== 'object') return null
+      return obj.map as Record<string, string>
+    } catch { return null }
+  }
+  const saveCache = (evId: string, target: string, sig: string, map: Record<string, string>) => {
+    try { localStorage.setItem(cacheKey(evId, target), JSON.stringify({ ts: Date.now(), sig, map })) } catch {}
+  }
+
   const selectedEvent = useMemo(() => events.find(e => e.id === eventId) || null, [events, eventId])
 
   useEffect(() => {
@@ -68,14 +87,23 @@ export default function OrderPage() {
     loadDrinks()
   }, [eventId])
 
-  // When lang is JA/EN, fetch translations for names + categories
+  // When lang is JA/EN, fetch translations for names + categories (with local cache)
   useEffect(() => {
     const fetchTranslations = async () => {
       if ((lang !== 'ja' && lang !== 'en') || drinks.length === 0) { setTmap({}); return }
+      // Build a stable signature of texts (names + categories + 'Other') to cache per event+lang
       const set: Set<string> = new Set()
       for (const d of drinks) { set.add(d.name); if (d.category) set.add(d.category) }
       set.add('Other')
-      const texts = Array.from(set)
+      const texts = Array.from(set).sort()
+      const sig = JSON.stringify(texts)
+
+      // Try cache first
+      try {
+        const cached = loadCache(eventId, lang, sig)
+        if (cached) { setTmap(cached); return }
+      } catch {}
+
       try {
         setTloading(true)
         const res = await fetch('/api/translate', {
@@ -83,7 +111,7 @@ export default function OrderPage() {
           body: JSON.stringify({ texts, sourceLang: 'vi', targetLang: lang })
         })
         const j = await res.json()
-        if (res.ok && j?.map) setTmap(j.map)
+        if (res.ok && j?.map) { setTmap(j.map); saveCache(eventId, lang, sig, j.map) }
         else setTmap({})
       } catch { setTmap({}) }
       finally { setTloading(false) }
@@ -251,7 +279,14 @@ export default function OrderPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{name}</p>
+                        <p className="font-medium truncate flex items-center gap-2">
+                          <span className="truncate">{name}</span>
+                          {lang !== 'vi' && (
+                            <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
+                              {lang === 'ja' ? 'JP' : 'EN'}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-slate-600 mt-2 font-semibold">{formatPriceVND(d.price)}</p>
                       </div>
                       <div className="ml-auto flex items-center gap-2">
@@ -292,7 +327,14 @@ export default function OrderPage() {
                   return (
                   <div key={it.id} className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="truncate">{name}</p>
+                      <p className="truncate flex items-center gap-2">
+                        <span className="truncate">{name}</span>
+                        {lang !== 'vi' && (
+                          <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
+                            {lang === 'ja' ? 'JP' : 'EN'}
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-sm text-slate-600">x{it.quantity}</div>
