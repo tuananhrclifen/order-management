@@ -51,19 +51,42 @@ function extractPriceNumber(obj: any): number | null {
 }
 
 function extractImage(obj: any): string | null {
-  const direct = obj?.imageUrl || obj?.imgUrl || obj?.photoUrl || obj?.photoHref || obj?.image || null
-  if (typeof direct === 'string' && direct) return direct
-  // Common array field
-  if (Array.isArray(obj?.images) && obj.images.length) {
-    const c = obj.images[0]
-    const src = c?.url || c?.imageUrl || c?.src || null
-    if (typeof src === 'string' && src) return src
+  const prefer = (...vals: any[]) => {
+    for (const v of vals) {
+      if (typeof v === 'string' && v) return v
+      if (v && typeof v === 'object') {
+        const s = (v as any).url || (v as any).src || (v as any).imageUrl || (v as any).thumbUrl || (v as any).thumbnailUrl || (v as any).mediumUrl || (v as any).largeUrl
+        if (typeof s === 'string' && s) return s
+      }
+    }
+    return null
   }
-  // Nested image object
-  const nested = obj?.imageObject || obj?.imageObj || obj?.photo || null
-  if (nested) {
-    const src = nested?.url || nested?.src || nested?.imageUrl || null
-    if (typeof src === 'string' && src) return src
+  const direct = prefer(
+    obj?.imageUrl, obj?.imageURL, obj?.imgUrl, obj?.imgURL, obj?.photoUrl, obj?.photoURL,
+    obj?.photoHref, obj?.image, obj?.thumbnailUrl, obj?.thumbUrl, obj?.mediumUrl, obj?.largeUrl,
+    obj?.portraitImageUrl, obj?.landscapeImageUrl
+  )
+  if (direct) return direct
+  if (Array.isArray(obj?.images) && obj.images.length) {
+    const c = obj.images.find((x: any) => !!(x?.url || x?.imageUrl || x?.src)) || obj.images[0]
+    const src = prefer(c)
+    if (src) return src
+  }
+  if (Array.isArray(obj?.photos) && obj.photos.length) {
+    const c = obj.photos.find((x: any) => typeof x === 'string' || !!(x?.url || x?.imageUrl || x?.src)) || obj.photos[0]
+    const src = typeof c === 'string' ? c : prefer(c)
+    if (src) return src
+  }
+  const nested = prefer(obj?.imageObject, obj?.imageObj, obj?.photo, obj?.picture)
+  if (nested) return nested
+  for (const k of Object.keys(obj || {})) {
+    const v = (obj as any)[k]
+    if (/image|img|photo|thumb|thumbnail|picture/i.test(k)) {
+      const s = prefer(v)
+      if (s) return s
+      if (typeof v === 'string' && /^https?:\/\//i.test(v)) return v
+    }
+    if (typeof v === 'string' && /^https?:\/\//i.test(v) && /(\.png|\.webp|\.jpg|\.jpeg|\.gif)(\?|#|$)/i.test(v)) return v
   }
   return null
 }
@@ -113,7 +136,7 @@ function extractFromNextData(nextData: any): NormalizedDrink[] {
 
 function extractGrabFoodItems(nextData: any): NormalizedDrink[] {
   const results: NormalizedDrink[] = []
-  for (const { node } of walk(nextData)) {
+  for (const { node, parents } of walk(nextData)) {
     if (!node || typeof node !== 'object' || Array.isArray(node)) continue
     // Common GrabFood fields observed:
     // name, priceInMinorUnit, description, imageUrl or images[0].url, isSoldOut/available
@@ -126,7 +149,14 @@ function extractGrabFoodItems(nextData: any): NormalizedDrink[] {
       image_url = node.images[0]?.url || node.images[0]?.imageUrl || null
     }
     const description = typeof node?.description === 'string' ? node.description : null
-    results.push({ name, price, image_url, description })
+    // Try to infer category from nearest parent with a name-like field
+    let category: string | null = null
+    for (let i = parents.length - 1; i >= 0; i--) {
+      const p = parents[i]
+      const pName = extractName(p) || p?.categoryName || p?.nameCategory || p?.title || null
+      if (typeof pName === 'string' && pName && pName !== name) { category = pName; break }
+    }
+    results.push({ name, price, image_url, description, category })
   }
   // Deduplicate by name+price
   const seen = new Set<string>()
@@ -187,8 +217,13 @@ function extractImgTags(html: string): { alt: string; src: string }[] {
     const tag = m[0]
     const altM = tag.match(/\balt\s*=\s*(["'])(.*?)\1/i)
     const srcM = tag.match(/\b(?:data-src|src)\s*=\s*(["'])(.*?)\1/i)
+    const srcsetM = tag.match(/\bsrcset\s*=\s*(["'])(.*?)\1/i) || tag.match(/\bdata-srcset\s*=\s*(["'])(.*?)\1/i)
     const alt = altM ? altM[2] : ''
-    const src = srcM ? srcM[2] : ''
+    let src = srcM ? srcM[2] : ''
+    if (!src && srcsetM) {
+      const parts = srcsetM[2].split(',').map(s => s.trim().split(' ')[0]).filter(Boolean)
+      if (parts.length) src = parts[parts.length - 1]
+    }
     if (src) tags.push({ alt, src })
   }
   return tags
@@ -275,6 +310,13 @@ export async function POST(req: NextRequest) {
       fillMissingImagesFromHtml(html, url, normalized)
     }
 
+    // Normalize image URLs to absolute if needed
+    for (const i of normalized) {
+      if (i.image_url) {
+        i.image_url = resolveUrlMaybe(i.image_url, url) || i.image_url
+      }
+    }
+
     if (normalized.length === 0) {
       return NextResponse.json({ error: 'No menu items detected' }, { status: 422 })
     }
@@ -294,17 +336,17 @@ export async function POST(req: NextRequest) {
     // Duplicate detection against DB by (lower(trim(name)), price) per event
     const { data: existing, error: existErr } = await svc
       .from('drinks')
-      .select('name, price')
+      .select('id, name, price, image_url')
       .eq('event_id', eventId)
       .limit(5000)
     if (existErr) return NextResponse.json({ error: existErr.message }, { status: 500 })
     const norm = (s: string) => s.trim().toLowerCase()
-    const existingSet = new Set<string>()
+    const existingMap = new Map<string, { id: string, image_url: string | null }>()
     for (const r of existing || []) {
       const k = `${norm((r as any).name)}|${Number((r as any).price)}`
-      existingSet.add(k)
+      existingMap.set(k, { id: (r as any).id, image_url: (r as any).image_url ?? null })
     }
-    const toInsert = rows.filter(r => !existingSet.has(`${norm(r.name)}|${Number(r.price)}`))
+    const toInsert = rows.filter(r => !existingMap.has(`${norm(r.name)}|${Number(r.price)}`))
 
     // Upload images to Storage for new rows only
     const BUCKET = 'menu-images'
@@ -330,12 +372,13 @@ export async function POST(req: NextRequest) {
       return 'jpg'
     }
 
-    async function fetchBuffer(url: string): Promise<{ buffer: Buffer; contentType: string | null } | null> {
+    async function fetchBuffer(url: string, referer?: string): Promise<{ buffer: Buffer; contentType: string | null } | null> {
       try {
         const res = await fetch(url, {
           headers: {
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-            'accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+            'accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+            ...(referer ? { 'referer': referer } : {})
           },
           // Some CDNs block missing referrers; leave default
         })
@@ -352,7 +395,7 @@ export async function POST(req: NextRequest) {
     async function uploadImageForRow(row: typeof rows[number]): Promise<string | null> {
       const src = row.image_url
       if (!src) return null
-      const got = await fetchBuffer(src)
+      const got = await fetchBuffer(src, url)
       if (!got) return null
       const hash = createHash('sha1').update(got.buffer).digest('hex')
       const ext = pickExt(got.contentType, src)
@@ -368,24 +411,53 @@ export async function POST(req: NextRequest) {
       return data.publicUrl
     }
 
-    if (toInsert.length > 0) {
+    // Prepare optional image migrations for existing rows that were deduped
+    const toMigrateExisting = rows
+      .map(r => ({ key: `${norm(r.name)}|${Number(r.price)}`, row: r }))
+      .filter(({ key, row }) => existingMap.has(key) && !!row.image_url)
+      .map(({ key, row }) => ({ existing: existingMap.get(key)!, row }))
+      .filter(({ existing, row }) => {
+        const isStorage = (u: string | null) => !!u && u.includes('/storage/v1/object/public/')
+        return !isStorage(existing.image_url) && !isStorage(row.image_url as any)
+      })
+
+    if (toInsert.length > 0 || toMigrateExisting.length > 0) {
       try { await ensureBucket() } catch (e) {
         // If bucket creation fails, proceed without uploads
       }
       // Limit concurrency to avoid timeouts
       const concurrency = 5
-      let index = 0
-      async function worker() {
-        while (index < toInsert.length) {
-          const i = index++
-          const row = toInsert[i]
-          if (row.image_url && !row.image_url.includes('/storage/v1/object/public/')) {
-            const uploaded = await uploadImageForRow(row)
-            if (uploaded) row.image_url = uploaded
+      // Upload for new rows
+      if (toInsert.length > 0) {
+        let idxNew = 0
+        async function workerNew() {
+          while (idxNew < toInsert.length) {
+            const i = idxNew++
+            const row = toInsert[i]
+            if (row.image_url && !row.image_url.includes('/storage/v1/object/public/')) {
+              const uploaded = await uploadImageForRow(row)
+              if (uploaded) row.image_url = uploaded
+            }
           }
         }
+        await Promise.all(Array.from({ length: Math.min(concurrency, toInsert.length) }, () => workerNew()))
       }
-      await Promise.all(Array.from({ length: Math.min(concurrency, toInsert.length) }, () => worker()))
+      // Upload/migrate for existing duplicates (update their image_url)
+      if (toMigrateExisting.length > 0) {
+        let idxExist = 0
+        async function workerExist() {
+          while (idxExist < toMigrateExisting.length) {
+            const i = idxExist++
+            const { existing, row } = toMigrateExisting[i]
+            if (!row.image_url) continue
+            const uploaded = await uploadImageForRow(row)
+            if (uploaded) {
+              await svc.from('drinks').update({ image_url: uploaded }).eq('id', existing.id)
+            }
+          }
+        }
+        await Promise.all(Array.from({ length: Math.min(concurrency, toMigrateExisting.length) }, () => workerExist()))
+      }
     }
 
     // Insert in chunks to avoid payload limits
@@ -410,6 +482,7 @@ export async function POST(req: NextRequest) {
       event: { id: ev.id, name: ev.name },
       inserted,
       skipped: rows.length - toInsert.length,
+      migratedExistingImages: toMigrateExisting.length,
       sample: toInsert.slice(0, Math.min(5, toInsert.length))
     })
   } catch (e: any) {
