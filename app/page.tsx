@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export default function HomePage() {
   return (
-    <div className="relative min-h-screen w-full overflow-hidden rounded-none">
+    <div className="relative min-h-screen w-screen left-1/2 -translate-x-1/2 overflow-hidden rounded-none">
       <div
         className="absolute inset-0 bg-cover bg-center will-change-transform scale-105 animate-[bgZoom_10s_ease-in-out_forwards]"
         style={{ backgroundImage: "url('https://images.unsplash.com/photo-1510626176961-4b57d4fbad03?q=80&w=2560&auto=format&fit=crop')" }}
