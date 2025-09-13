@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getSupabaseService } from '@/lib/supabaseService'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -7,6 +8,8 @@ type Payload = {
   texts: string[]
   sourceLang?: 'vi' | 'ja' | 'en' | string
   targetLang: 'ja' | 'vi' | 'en' | string
+  eventId?: string
+  sig?: string
 }
 
 function normalizeTexts(texts: string[]): string[] {
@@ -82,7 +85,7 @@ async function translateWithGemini(texts: string[], targetLang: string, sourceLa
 
 export async function POST(req: NextRequest) {
   try {
-    const { texts, sourceLang, targetLang } = (await req.json()) as Payload
+    const { texts, sourceLang, targetLang, eventId, sig } = (await req.json()) as Payload
     if (!Array.isArray(texts) || !texts.length) {
       return NextResponse.json({ error: 'texts required' }, { status: 400 })
     }
@@ -90,7 +93,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'targetLang required' }, { status: 400 })
     }
     const uniq = normalizeTexts(texts).slice(0, 500)
+
+    // Server-side cache in Supabase (optional if eventId & sig are provided)
+    const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7 // 7 days
+    if (eventId && sig) {
+      try {
+        const svc = getSupabaseService()
+        const { data: row } = await svc
+          .from('translation_cache')
+          .select('sig, map, updated_at')
+          .eq('event_id', eventId)
+          .eq('lang', targetLang)
+          .single()
+        if (row && row.sig === sig && row.updated_at && (Date.now() - new Date(row.updated_at).getTime()) <= CACHE_TTL_MS) {
+          return NextResponse.json({ map: row.map })
+        }
+      } catch {}
+    }
+
     const map = await translateWithGemini(uniq, targetLang, sourceLang)
+
+    if (eventId && sig) {
+      try {
+        const svc = getSupabaseService()
+        await svc
+          .from('translation_cache')
+          .upsert({ event_id: eventId, lang: targetLang, sig, map, updated_at: new Date().toISOString() })
+      } catch {}
+    }
     return NextResponse.json({ map })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })

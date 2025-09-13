@@ -108,7 +108,7 @@ export default function OrderPage() {
         setTloading(true)
         const res = await fetch('/api/translate', {
           method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ texts, sourceLang: 'vi', targetLang: lang })
+          body: JSON.stringify({ texts, sourceLang: 'vi', targetLang: lang, eventId, sig })
         })
         const j = await res.json()
         if (res.ok && j?.map) { setTmap(j.map); saveCache(eventId, lang, sig, j.map) }
