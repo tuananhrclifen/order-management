@@ -21,6 +21,11 @@ export default function OrderPage() {
   const [cart, setCart] = useState<Cart>({})
   const [search, setSearch] = useState('')
 
+  // Language and translations
+  type Lang = 'vi' | 'ja'
+  const [lang, setLang] = useState<Lang>('vi')
+  const [tmap, setTmap] = useState<Record<string, string>>({})
+
   const selectedEvent = useMemo(() => events.find(e => e.id === eventId) || null, [events, eventId])
 
   useEffect(() => {
@@ -34,6 +39,15 @@ export default function OrderPage() {
       if (!eventId && data && data.length) setEventId(data[0].id)
     }
     loadEvents()
+  }, [])
+
+  // Listen to language changes from header switch
+  useEffect(() => {
+    const saved = (typeof window !== 'undefined' && window.localStorage.getItem('ddos.lang')) as Lang | null
+    if (saved === 'ja' || saved === 'vi') setLang(saved)
+    const onChange = (e: any) => setLang((e?.detail?.lang as Lang) || 'vi')
+    window.addEventListener('ddos:lang-change', onChange as any)
+    return () => window.removeEventListener('ddos:lang-change', onChange as any)
   }, [])
 
   useEffect(() => {
@@ -52,6 +66,27 @@ export default function OrderPage() {
     }
     loadDrinks()
   }, [eventId])
+
+  // When lang is JA, fetch translations for names + categories
+  useEffect(() => {
+    const fetchTranslations = async () => {
+      if (lang !== 'ja' || drinks.length === 0) { setTmap({}); return }
+      const set: Set<string> = new Set()
+      for (const d of drinks) { set.add(d.name); if (d.category) set.add(d.category) }
+      set.add('Other')
+      const texts = Array.from(set)
+      try {
+        const res = await fetch('/api/translate', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ texts, sourceLang: 'vi', targetLang: 'ja' })
+        })
+        const j = await res.json()
+        if (res.ok && j?.map) setTmap(j.map)
+        else setTmap({})
+      } catch { setTmap({}) }
+    }
+    fetchTranslations()
+  }, [lang, drinks])
 
   const increment = (drinkId: string) => {
     setCart(prev => ({ ...prev, [drinkId]: (prev[drinkId] || 0) + 1 }))
@@ -99,7 +134,8 @@ export default function OrderPage() {
   const grouped = useMemo(() => {
     const map = new Map<string, Drink[]>()
     for (const d of filteredDrinks) {
-      const key = (d.category?.trim() || 'Other')
+      const keyVi = (d.category?.trim() || 'Other')
+      const key = lang === 'ja' ? (tmap[keyVi] || keyVi) : keyVi
       const arr = map.get(key) || []
       arr.push(d)
       map.set(key, arr)
@@ -115,7 +151,7 @@ export default function OrderPage() {
       return aKey.localeCompare(bKey)
     })
     return entries
-  }, [filteredDrinks])
+  }, [filteredDrinks, lang, tmap])
 
   const submitCart = async () => {
     setMessage(null)
@@ -195,6 +231,7 @@ export default function OrderPage() {
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {items.map(d => {
                   const qty = cart[d.id] || 0
+                  const name = lang === 'ja' ? (tmap[d.name] || d.name) : d.name
                   return (
                     <div key={d.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border hover:shadow-sm">
                       <div className="w-24 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
@@ -206,7 +243,7 @@ export default function OrderPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{d.name}</p>
+                        <p className="font-medium truncate">{name}</p>
                         <p className="text-slate-600 mt-2 font-semibold">{formatPriceVND(d.price)}</p>
                       </div>
                       <div className="ml-auto flex items-center gap-2">
@@ -242,17 +279,19 @@ export default function OrderPage() {
               <p className="text-sm text-slate-500">Your cart is empty. Add some drinks.</p>
             ) : (
               <div className="space-y-2">
-                {cartItems.map(it => (
+                {cartItems.map(it => {
+                  const name = lang === 'ja' ? (tmap[it.drink.name] || it.drink.name) : it.drink.name
+                  return (
                   <div key={it.id} className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="truncate">{it.drink.name}</p>
+                      <p className="truncate">{name}</p>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-sm text-slate-600">x{it.quantity}</div>
                       <div className="font-medium">{formatPriceVND(it.lineTotal)}</div>
                     </div>
                   </div>
-                ))}
+                )})}
                 <div className="pt-2 mt-2 border-t flex items-center justify-between">
                   <div className="text-sm text-slate-600">Total</div>
                   <div className="text-lg font-semibold">{formatPriceVND(totals.totalPrice)}</div>
@@ -282,4 +321,3 @@ export default function OrderPage() {
     </div>
   )
 }
-

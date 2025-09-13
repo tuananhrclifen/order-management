@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import TopMenu from '@/components/TopMenu'
 import BrandLogo from '@/components/BrandLogo'
+import LanguageSwitch from '@/components/LanguageSwitch'
 
 export const metadata = {
   title: 'Department Drink Ordering System',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <BrandLogo />
             </Link>
             <div className="ml-auto flex items-center">
+              <LanguageSwitch />
               <TopMenu />
             </div>
           </nav>
