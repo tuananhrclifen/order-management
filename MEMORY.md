@@ -2,26 +2,36 @@
 
 This note captures current status, decisions, and next actions so we can resume quickly later.
 
+## Recent Changes
+- Modernized landing page (full-bleed hero, smooth transitions, brand logo at `/public/logo.png`, optional `/public/hero.jpg`).
+- Language switch in header (VI / 日本語 / EN). Order page translates names + categories using Gemini; shows JP/EN badges; search matches translated terms.
+- Server-side translation cache (`translation_cache` table with service-role RLS) and client-side localStorage cache (7‑day TTL, signature-based).
+- Admin utilities: Clear Translation Cache and Refresh Translations (JA/EN) with Gemini 2.0 Flash Experimental.
+- Standalone crawler `tools/crawl-menu.mjs` with optional headless rendering and direct Storage uploads.
+
 ## Current Status
 - Deployed on Vercel from repo `tuananhrclifen/order-management` (branch `main`).
-- Env vars configured on Vercel UI:
+- Required env vars (Vercel):
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `NEXT_PUBLIC_ADMIN_EMAILS`
   - `SUPABASE_SERVICE_ROLE_KEY`
-- Supabase schema applied (events, drinks, orders + indexes).
+  - `GOOGLE_GENAI_API_KEY` (or `GEMINI_API_KEY`)
+  - `TRANSLATE_MODEL` (default `gemini-2.0-flash-exp`)
+- Supabase schema applied (events, drinks, orders + indexes). New table `translation_cache` (service-role RLS) for server-side translation caching.
 
 ## Implemented Features
 - App stack: Next.js 14 + TypeScript + Tailwind.
 - Auth: Supabase magic-link; admin allowlist via `NEXT_PUBLIC_ADMIN_EMAILS`.
 - Admin UI:
   - Events: create/list.
-  - Drinks: add/list, VND price formatting, import-from-URL form, utilities (Migrate Images to Storage, Delete ALL drinks by event).
+  - Drinks: add/list, VND price formatting, import-from-URL form, utilities (Migrate Images to Storage, Clear Translation Cache, Refresh Translations (JA/EN), Delete ALL drinks by event).
   - Orders: filter by event/status, update status (advance or select), and export CSV.
 - Public Order UI:
   - Card grid (image, name, price) with quantity +/- controls and a Cart Summary that is always visible (sticky on large screens).
   - Search by name/category; grouped by category.
   - Enter name once; single submit creates all line items.
+  - Language switch (header): VI / 日本語 / EN. When set to JA/EN, names + categories translate using Gemini; small badge (JP/EN) shown next to translated names. Search matches both original and translated text.
 - Crawl/Import API:
   - `POST /api/crawl/ingest` with `{ url, eventId }` (admin-only, token required).
   - Host-specific mappers: GrabFood and ShopeeFood/Foody; generic fallback using embedded `__NEXT_DATA__`.
@@ -94,4 +104,3 @@ This note captures current status, decisions, and next actions so we can resume 
 ## Notes
 - Price formatting uses VND style (no decimals) via `formatPriceVND`.
 - Importer respects public HTML only; be mindful of site terms.
-
