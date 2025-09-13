@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
     if (!allowed.includes(email)) return NextResponse.json({ error: 'Not an admin' }, { status: 403 })
 
     const svc = getSupabaseService()
-    let q = svc.from('translation_cache').delete().eq('event_id', eventId).select('event_id,lang')
+    let q = svc.from('translation_cache').delete().eq('event_id', eventId)
     if (lang) q = q.eq('lang', String(lang))
-    const { data, error } = await q
+    const { data, error } = await q.select('event_id,lang')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const deleted = (data || []).length
     return NextResponse.json({ ok: true, deleted })
@@ -37,4 +37,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
   }
 }
-
