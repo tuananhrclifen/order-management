@@ -35,3 +35,14 @@ Phase 1 scaffold for the web app using Next.js 14, TypeScript, Tailwind CSS, and
 - CI/CD: Connect this repo to Vercel. Set environment variables in Vercel project settings. Default Next.js build works without extra config.
 - Next steps (Phase 2+): File import (CSV/JSON/MD), SSE updates, order workflow, exports.
 
+## Translation (Gemini)
+
+The Order page can translate drink names and categories to Japanese or English. Toggle language at the top right.
+
+Environment variables (set in `.env.local` or your hosting provider):
+
+- `GOOGLE_GENAI_API_KEY` or `GEMINI_API_KEY`: your Gemini API key
+- `TRANSLATE_MODEL` (optional): defaults to `gemini-2.0-flash-exp`
+
+Endpoint used: `POST /api/translate` with body `{ texts: string[], sourceLang: 'vi', targetLang: 'ja' | 'en' }`.
+When no API key is configured, the endpoint returns original strings unchanged.
