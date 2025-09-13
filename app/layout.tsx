@@ -13,9 +13,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-50 text-slate-900 animate-fade-in">
-        <header className="border-b bg-white/70 backdrop-blur-md sticky top-0 z-20">
+        <header className="border-b bg-white/60 backdrop-blur-md sticky top-0 z-20 transition-all duration-700 ease-[cubic-bezier(.22,.61,.36,1)]">
           <nav className="mx-auto container px-4 py-3 flex items-center gap-4">
-            <Link href="/" className="font-bold text-primary-700 text-lg tracking-tight">DDOS</Link>
+            <Link href="/" className="flex items-center gap-3 group" aria-label="Home">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="ESUTECH" className="h-7 w-auto select-none opacity-90 group-hover:opacity-100 transition-opacity" />
+              <span className="sr-only">Department Drink Ordering System</span>
+            </Link>
             <div className="ml-auto flex items-center">
               <TopMenu />
             </div>
@@ -29,4 +33,3 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     </html>
   )
 }
-

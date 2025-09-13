@@ -2,26 +2,25 @@ import Link from 'next/link'
 
 export default function HomePage() {
   return (
-    <div className="relative min-h-[80vh] sm:min-h-[86vh] w-full overflow-hidden rounded-none sm:rounded-2xl">
+    <div className="relative min-h-screen w-full overflow-hidden rounded-none">
       <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1510626176961-4b57d4fbad03?q=80&w=1920&auto=format&fit=crop')" }}
+        className="absolute inset-0 bg-cover bg-center will-change-transform scale-105 animate-[bgZoom_10s_ease-in-out_forwards]"
+        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1510626176961-4b57d4fbad03?q=80&w=2560&auto=format&fit=crop')" }}
       />
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/20" />
 
-      <section className="relative z-10 container mx-auto px-6 sm:px-10 py-20 sm:py-28 text-white">
-        <p className="uppercase tracking-[0.35em] text-xs sm:text-sm text-white/80">Let&apos;s take a</p>
-        <h1 className="mt-2 text-5xl sm:text-7xl font-extrabold leading-[0.95]">
+      <section className="relative z-10 container mx-auto px-6 sm:px-10 pt-28 sm:pt-36 pb-16 sm:pb-24 text-white">
+        <p className="uppercase tracking-[0.35em] text-xs sm:text-sm text-white/80 animate-[fadeUpSmooth_.9s_ease-out_0s_both]">Let&apos;s take a</p>
+        <h1 className="mt-2 text-5xl sm:text-7xl font-extrabold leading-[0.95] animate-[fadeUpSmooth_1.2s_ease-out_.05s_both]">
           <span className="gradient-text">Nice</span>
           <span className="ml-3 text-white drop-shadow">Break</span>
         </h1>
-        <p className="mt-6 max-w-xl text-sm sm:text-base text-white/80">
+        <p className="mt-6 max-w-xl text-sm sm:text-base text-white/85 animate-[fadeUpSmooth_1.4s_ease-out_.1s_both]">
           Create events, build drink menus, and place orders effortlessly. Fresh, modern, and fast for your team.
         </p>
 
-        <div className="mt-10 flex items-center gap-4">
-          <Link href="/order" className="btn-hero">Place Order</Link>
-          <Link href="#about" className="btn-ghost">Learn more</Link>
+        <div className="mt-10 flex items-center gap-4 animate-[fadeUpSmooth_1.6s_ease-out_.15s_both]">
+          <Link href="/order" className="btn-hero text-base sm:text-lg px-7 sm:px-8 py-3.5 sm:py-4">Place Order</Link>
         </div>
       </section>
 
