@@ -22,9 +22,10 @@ export default function OrderPage() {
   const [search, setSearch] = useState('')
 
   // Language and translations
-  type Lang = 'vi' | 'ja'
+  type Lang = 'vi' | 'ja' | 'en'
   const [lang, setLang] = useState<Lang>('vi')
   const [tmap, setTmap] = useState<Record<string, string>>({})
+  const [tloading, setTloading] = useState(false)
 
   const selectedEvent = useMemo(() => events.find(e => e.id === eventId) || null, [events, eventId])
 
@@ -44,7 +45,7 @@ export default function OrderPage() {
   // Listen to language changes from header switch
   useEffect(() => {
     const saved = (typeof window !== 'undefined' && window.localStorage.getItem('ddos.lang')) as Lang | null
-    if (saved === 'ja' || saved === 'vi') setLang(saved)
+    if (saved === 'ja' || saved === 'vi' || saved === 'en') setLang(saved)
     const onChange = (e: any) => setLang((e?.detail?.lang as Lang) || 'vi')
     window.addEventListener('ddos:lang-change', onChange as any)
     return () => window.removeEventListener('ddos:lang-change', onChange as any)
@@ -67,23 +68,25 @@ export default function OrderPage() {
     loadDrinks()
   }, [eventId])
 
-  // When lang is JA, fetch translations for names + categories
+  // When lang is JA/EN, fetch translations for names + categories
   useEffect(() => {
     const fetchTranslations = async () => {
-      if (lang !== 'ja' || drinks.length === 0) { setTmap({}); return }
+      if ((lang !== 'ja' && lang !== 'en') || drinks.length === 0) { setTmap({}); return }
       const set: Set<string> = new Set()
       for (const d of drinks) { set.add(d.name); if (d.category) set.add(d.category) }
       set.add('Other')
       const texts = Array.from(set)
       try {
+        setTloading(true)
         const res = await fetch('/api/translate', {
           method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ texts, sourceLang: 'vi', targetLang: 'ja' })
+          body: JSON.stringify({ texts, sourceLang: 'vi', targetLang: lang })
         })
         const j = await res.json()
         if (res.ok && j?.map) setTmap(j.map)
         else setTmap({})
       } catch { setTmap({}) }
+      finally { setTloading(false) }
     }
     fetchTranslations()
   }, [lang, drinks])
@@ -125,17 +128,19 @@ export default function OrderPage() {
     const q = search.trim().toLowerCase()
     if (!q) return drinks
     return drinks.filter(d => {
-      const name = d.name.toLowerCase()
-      const cat = (d.category || '').toLowerCase()
-      return name.includes(q) || (!!cat && cat.includes(q))
+      const nameVi = d.name.toLowerCase()
+      const catVi = (d.category || '').toLowerCase()
+      const nameT = (tmap[d.name] || '').toLowerCase()
+      const catT = (d.category ? (tmap[d.category] || '') : '').toLowerCase()
+      return nameVi.includes(q) || (!!catVi && catVi.includes(q)) || (!!nameT && nameT.includes(q)) || (!!catT && catT.includes(q))
     })
-  }, [drinks, search])
+  }, [drinks, search, tmap])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Drink[]>()
     for (const d of filteredDrinks) {
       const keyVi = (d.category?.trim() || 'Other')
-      const key = lang === 'ja' ? (tmap[keyVi] || keyVi) : keyVi
+      const key = (lang === 'ja' || lang === 'en') ? (tmap[keyVi] || keyVi) : keyVi
       const arr = map.get(key) || []
       arr.push(d)
       map.set(key, arr)
@@ -207,6 +212,9 @@ export default function OrderPage() {
       <div className="grid gap-3 p-4 border rounded bg-white">
         {message && <p className="text-sm text-green-700">{message}</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {tloading && (lang === 'ja' || lang === 'en') && (
+          <p className="text-sm text-slate-600">Translating...</p>
+        )}
         <input
           className="px-3 py-2 border rounded max-w-md"
           placeholder="Your name"
@@ -231,7 +239,7 @@ export default function OrderPage() {
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {items.map(d => {
                   const qty = cart[d.id] || 0
-                  const name = lang === 'ja' ? (tmap[d.name] || d.name) : d.name
+                  const name = (lang === 'ja' || lang === 'en') ? (tmap[d.name] || d.name) : d.name
                   return (
                     <div key={d.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border hover:shadow-sm">
                       <div className="w-24 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
@@ -280,7 +288,7 @@ export default function OrderPage() {
             ) : (
               <div className="space-y-2">
                 {cartItems.map(it => {
-                  const name = lang === 'ja' ? (tmap[it.drink.name] || it.drink.name) : it.drink.name
+                  const name = (lang === 'ja' || lang === 'en') ? (tmap[it.drink.name] || it.drink.name) : it.drink.name
                   return (
                   <div key={it.id} className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">

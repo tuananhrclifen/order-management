@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic'
 
 type Payload = {
   texts: string[]
-  sourceLang?: 'vi' | 'ja' | string
-  targetLang: 'ja' | 'vi' | string
+  sourceLang?: 'vi' | 'ja' | 'en' | string
+  targetLang: 'ja' | 'vi' | 'en' | string
 }
 
 function normalizeTexts(texts: string[]): string[] {
@@ -35,7 +35,7 @@ function parseJsonFromString(s: string): any | null {
 
 async function translateWithGemini(texts: string[], targetLang: string, sourceLang?: string): Promise<Record<string, string>> {
   const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY
-  const model = process.env.TRANSLATE_MODEL || 'gemini-1.5-flash-latest'
+  const model = process.env.TRANSLATE_MODEL || 'gemini-2.0-flash-exp'
   if (!apiKey) {
     // No key: return identity mapping
     const map: Record<string, string> = {}
@@ -96,4 +96,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
   }
 }
-
