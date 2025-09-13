@@ -11,12 +11,11 @@ create table if not exists public.translation_cache (
 
 create index if not exists idx_translation_cache_updated_at on public.translation_cache(updated_at);
 
--- Lock down via RLS; only admins (service role) should write/read directly.
+-- Lock down via RLS; only service role (and thus our server API) may read/write directly.
 alter table public.translation_cache enable row level security;
 
-drop policy if exists admin_all_translation_cache on public.translation_cache;
-create policy admin_all_translation_cache
+drop policy if exists service_all_translation_cache on public.translation_cache;
+create policy service_all_translation_cache
   on public.translation_cache for all
-  using (public.is_admin())
-  with check (public.is_admin());
-
+  using ((auth.jwt() ->> 'role') = 'service_role')
+  with check ((auth.jwt() ->> 'role') = 'service_role');
