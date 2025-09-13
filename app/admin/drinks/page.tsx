@@ -146,6 +146,34 @@ function DrinksInner() {
     }
   }
 
+  const refreshTranslations = async () => {
+    setOpsMsg(null)
+    setError(null)
+    if (!eventId) return setError('Select an event')
+    try {
+      setOpsLoading(true)
+      const { data: session } = await supabase.auth.getSession()
+      const token = session.session?.access_token
+      const res = await fetch('/api/admin/translate/refresh', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ eventId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Refresh failed')
+      const ja = data?.refreshed?.ja || 0
+      const en = data?.refreshed?.en || 0
+      setOpsMsg(`Refreshed translations (JA: ${ja}, EN: ${en})`)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setOpsLoading(false)
+    }
+  }
+
   const clearAllDrinks = async () => {
     setOpsMsg(null)
     setError(null)
@@ -222,6 +250,7 @@ function DrinksInner() {
         <div className="flex flex-wrap gap-3">
           <button onClick={migrateImages} disabled={opsLoading || !eventId} className="px-3 py-2 border rounded text-sm hover:bg-slate-50">{opsLoading ? 'Working...' : 'Migrate Images to Storage'}</button>
           <button onClick={clearTranslationCache} disabled={opsLoading || !eventId} className="px-3 py-2 border rounded text-sm hover:bg-slate-50">{opsLoading ? 'Working...' : 'Clear Translation Cache'}</button>
+          <button onClick={refreshTranslations} disabled={opsLoading || !eventId} className="px-3 py-2 border rounded text-sm hover:bg-slate-50">{opsLoading ? 'Working...' : 'Refresh Translations (JA/EN)'}</button>
           <button onClick={clearAllDrinks} disabled={opsLoading || !eventId} className="px-3 py-2 border rounded text-sm text-red-600 hover:bg-red-50">{opsLoading ? 'Working...' : 'Delete ALL Drinks'}</button>
         </div>
         <p className="text-xs text-slate-500">Delete ALL will also remove related orders via cascade. This cannot be undone.</p>
