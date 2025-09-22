@@ -28,6 +28,7 @@ export default function OrderPage() {
   const [tmap, setTmap] = useState<Record<string, string>>({})
   const [tloading, setTloading] = useState(false)
   const nameError = nameTouched && !form.person_name.trim()
+  const nameInputClasses = `px-3 py-2 border rounded max-w-md focus:outline-none focus:ring-2 ${nameError ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-emerald-200 focus:border-emerald-400'}`
 
   // Cache helpers for translations
   const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7 // 7 days
@@ -247,13 +248,13 @@ export default function OrderPage() {
           <p className="text-sm text-slate-600">Translating...</p>
         )}
         <input
-          className={`px-3 py-2 border rounded max-w-md focus:outline-none focus:ring-2 ${nameError ? "border-red-500 focus:ring-red-500 focus:border-red-500" : "focus:ring-emerald-200 focus:border-emerald-400"}`
+          className={nameInputClasses}
           placeholder="Your name"
           required
           value={form.person_name}
           onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))}
           onBlur={() => setNameTouched(true)}
-          aria-invalid={nameError ? "true" : "false"}
+          aria-invalid={nameError ? 'true' : 'false'}
           aria-describedby="order-name-error"
         />
         {nameError && (
