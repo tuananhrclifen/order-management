@@ -18,6 +18,7 @@ export default function OrderPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [form, setForm] = useState<OrderForm>({ person_name: '' })
+  const [nameTouched, setNameTouched] = useState(false)
   const [cart, setCart] = useState<Cart>({})
   const [search, setSearch] = useState('')
 
@@ -26,6 +27,7 @@ export default function OrderPage() {
   const [lang, setLang] = useState<Lang>('vi')
   const [tmap, setTmap] = useState<Record<string, string>>({})
   const [tloading, setTloading] = useState(false)
+  const nameError = nameTouched && !form.person_name.trim()
 
   // Cache helpers for translations
   const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7 // 7 days
@@ -189,6 +191,7 @@ export default function OrderPage() {
   const submitCart = async () => {
     setMessage(null)
     setError(null)
+    setNameTouched(true)
     if (!eventId) return setError('Please select an event')
     if (!form.person_name.trim()) return setError('Please enter your name')
     if (cartItems.length === 0) return setError('Please add at least one item')
@@ -244,12 +247,18 @@ export default function OrderPage() {
           <p className="text-sm text-slate-600">Translating...</p>
         )}
         <input
-          className="px-3 py-2 border rounded max-w-md"
+          className={`px-3 py-2 border rounded max-w-md focus:outline-none focus:ring-2 ${nameError ? "border-red-500 focus:ring-red-500 focus:border-red-500" : "focus:ring-emerald-200 focus:border-emerald-400"}`
           placeholder="Your name"
           required
           value={form.person_name}
-          onChange={e=>setForm(f=>({...f,person_name:e.target.value}))}
+          onChange={e => setForm(f => ({ ...f, person_name: e.target.value }))}
+          onBlur={() => setNameTouched(true)}
+          aria-invalid={nameError ? "true" : "false"}
+          aria-describedby="order-name-error"
         />
+        {nameError && (
+          <p id="order-name-error" className="text-xs text-red-600">Please enter your name.</p>
+        )}
         <p className="text-xs text-slate-600">
           Use + / - to adjust quantities. Submit when ready.
         </p>
