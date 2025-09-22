@@ -255,7 +255,7 @@ export default function OrderPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px] pb-32 xl:pb-0">
         <div className="grid gap-4 order-2 xl:order-1">
           {loading && <p className="text-sm">Loading...</p>}
           {!loading && filteredDrinks.length === 0 && (
@@ -279,8 +279,8 @@ export default function OrderPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate flex items-center gap-2">
-                          <span className="truncate">{name}</span>
+                        <p className="font-medium flex items-center gap-2 whitespace-normal break-words">
+                          <span className="whitespace-normal break-words">{name}</span>
                           {lang !== 'vi' && (
                             <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
                               {lang === 'ja' ? 'JP' : 'EN'}
@@ -311,8 +311,8 @@ export default function OrderPage() {
           ))}
         </div>
 
-        <div className="order-1 xl:order-2">
-          <div className="grid gap-3 p-4 border rounded bg-white xl:sticky xl:top-4">
+        <div className="order-1 xl:order-2 w-full">
+          <div className="grid gap-3 p-4 bg-white border-t border-slate-200 shadow-lg sticky bottom-0 z-30 sm:border sm:rounded-lg sm:shadow-lg xl:shadow-sm xl:sticky xl:top-4 xl:bottom-auto">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">Cart Summary</h2>
               <div className="text-sm text-slate-600">{totals.totalQty} items</div>
@@ -327,8 +327,8 @@ export default function OrderPage() {
                   return (
                   <div key={it.id} className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="truncate flex items-center gap-2">
-                        <span className="truncate">{name}</span>
+                      <p className="flex items-center gap-2 whitespace-normal break-words">
+                        <span className="whitespace-normal break-words">{name}</span>
                         {lang !== 'vi' && (
                           <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
                             {lang === 'ja' ? 'JP' : 'EN'}
