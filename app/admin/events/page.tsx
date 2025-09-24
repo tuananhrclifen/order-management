@@ -17,9 +17,11 @@ function EventsInner() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '' })
   const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
+    setError(null)
     const { data, error } = await supabase
       .from('events')
       .select('*')
@@ -47,6 +49,20 @@ function EventsInner() {
     await load()
   }
 
+  const deleteEvent = async (id: string, name: string) => {
+    setError(null)
+    const confirmed = window.confirm(`Delete "${name}"? This removes the event and all related drinks/orders.`)
+    if (!confirmed) return
+    try {
+      setDeletingId(id)
+      const { error } = await supabase.from('events').delete().eq('id', id)
+      if (error) return setError(error.message)
+      await load()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -72,13 +88,21 @@ function EventsInner() {
         {!loading && events.length === 0 && <p className="text-sm text-slate-600">No events yet.</p>}
         <ul className="divide-y bg-white border rounded">
           {events.map(ev => (
-            <li key={ev.id} className="p-3 flex items-center justify-between">
+            <li key={ev.id} className="p-3 flex items-center justify-between gap-3">
               <div>
                 <p className="font-medium">{ev.name}</p>
-                <p className="text-xs text-slate-600">{ev.is_active ? 'Active' : 'Inactive'} • {new Date(ev.created_at).toLocaleString()}</p>
+                <p className="text-xs text-slate-600">{ev.is_active ? 'Active' : 'Inactive'} | {new Date(ev.created_at).toLocaleString()}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs border rounded px-2 py-1">{ev.start_date ? new Date(ev.start_date).toLocaleDateString() : '—'} → {ev.end_date ? new Date(ev.end_date).toLocaleDateString() : '—'}</span>
+                <span className="text-xs border rounded px-2 py-1">{ev.start_date ? new Date(ev.start_date).toLocaleDateString() : '--'} - {ev.end_date ? new Date(ev.end_date).toLocaleDateString() : '--'}</span>
+                <button
+                  onClick={() => deleteEvent(ev.id, ev.name)}
+                  disabled={deletingId === ev.id}
+                  className="text-xs px-2 py-1 border rounded text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  title="Delete event"
+                >
+                  {deletingId === ev.id ? 'Deleting...' : 'Delete'}
+                </button>
               </div>
             </li>
           ))}
