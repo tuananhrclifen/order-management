@@ -46,9 +46,13 @@ async function translateWithGemini(texts: string[], targetLang: string, sourceLa
     return map
   }
 
-  const sys = `You are a professional translator. Translate from ${sourceLang || 'auto'} to ${targetLang}. ` +
-    `Return ONLY compact JSON mapping without commentary, where keys are original strings and values are translations. ` +
-    `Preserve brand/product names if they are proper nouns; do not add extra punctuation.`
+  const sys = [
+    `You are a professional menu translator specialising in beverages (coffee, tea, juices, smoothies, toppings, fruits).`,
+    `Translate each entry from ${sourceLang || 'auto'} to ${targetLang} using natural ${targetLang} wording while keeping the meaning precise.`,
+    `Preserve brand or trademark names, keep units/size codes (ml, L, size S/M/L), and retain add-on indicators such as "extra" or "with pearls".`,
+    `Aim for concise drink menu phrasing and avoid adding explanations or punctuation that was not in the original.`,
+    `Return ONLY compact JSON with the original strings as keys and their translations as values; no commentary or markdown.`
+  ].join(' ')
 
   const body = {
     contents: [

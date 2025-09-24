@@ -30,6 +30,14 @@ Phase 1 scaffold for the web app using Next.js 14, TypeScript, Tailwind CSS, and
    - Share `/order` for users to place orders on active events.
 
 ## Notes
+### Import a plain-text menu
+
+```
+node tools/import-text-menu.mjs --file menunuoccam.txt --event-id 870a5ab9-32bc-4d36-b7b8-8b49ccb1c0dd --price 20000
+```
+
+You will need `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set (or pass `--supabase-url` / `--supabase-key`). Each line becomes a drink name at the selected price.
+
 
 - Auth & RLS: This scaffold uses client-side Supabase writes for simplicity. Add RLS policies in Supabase for production and consider server-side actions with a service role for privileged ops.
 - CI/CD: Connect this repo to Vercel. Set environment variables in Vercel project settings. Default Next.js build works without extra config.
@@ -46,3 +54,6 @@ Environment variables (set in `.env.local` or your hosting provider):
 
 Endpoint used: `POST /api/translate` with body `{ texts: string[], sourceLang: 'vi', targetLang: 'ja' | 'en' }`.
 When no API key is configured, the endpoint returns original strings unchanged.
+
+
+
