@@ -3,11 +3,13 @@
 This note captures current status, decisions, and next actions so we can resume quickly later.
 
 ## Recent Changes
+- Order page categories are now sorted logically, with priority items (New, Hot) first and Toppings last.
 - Modernized landing page (full-bleed hero, smooth transitions, brand logo at `/public/logo.png`, optional `/public/hero.jpg`).
 - Language switch in header (VI / 日本語 / EN). Order page translates names + categories using Gemini; shows JP/EN badges; search matches translated terms.
 - Server-side translation cache (`translation_cache` table with service-role RLS) and client-side localStorage cache (7‑day TTL, signature-based).
 - Admin utilities: Clear Translation Cache and Refresh Translations (JA/EN) with Gemini 2.0 Flash Experimental.
 - Standalone crawler `tools/crawl-menu.mjs` with optional headless rendering and direct Storage uploads.
+- Order page now shows full drink names, enforces name input with inline validation, and keeps the cart summary visible (sticky bottom on small screens, sidebar sticky on large).
 
 ## Current Status
 - Deployed on Vercel from repo `tuananhrclifen/order-management` (branch `main`).
@@ -99,8 +101,13 @@ This note captures current status, decisions, and next actions so we can resume 
 - Storage uploads: for new items, download image and upload to Supabase Storage bucket `menu-images` (public); dedupe by SHA-1 content hash; reuse if already uploaded; replace `image_url` with public Storage URL.
 
 ## UX Tweaks
-- Order page shows Cart Summary in a sticky side panel on large screens (and inline on small), so it's always visible.
+- Order page shows Cart Summary in a sticky side panel on large screens and as a sticky footer on smaller screens, so it's always visible.
 
 ## Notes
 - Price formatting uses VND style (no decimals) via `formatPriceVND`.
 - Importer respects public HTML only; be mindful of site terms.
+
+## Latest Menu Crawls
+- `crane-tea.json` / `crane-tea.sql`: Crane Tea Lê Trọng Tấn (event 90c538e1-5ad0-4adc-8d51-23301816d9b4).
+- `maycha.json` / `maycha.sql`: Trà Sữa Maycha Đồng Đen (event 90c538e1-5ad0-4adc-8d51-23301816d9b4).
+- `chulong.json` / `chulong.sql`: Cà Phê Muối Chú Long Cộng Hòa (event 90c538e1-5ad0-4adc-8d51-23301816d9b4).
