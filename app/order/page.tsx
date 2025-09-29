@@ -178,13 +178,25 @@ export default function OrderPage() {
     }
     const entries = Array.from(map.entries())
     entries.sort((a, b) => {
-      const aKey = a[0]
-      const bKey = b[0]
-      const aIsOther = aKey.toLowerCase() === 'other'
-      const bIsOther = bKey.toLowerCase() === 'other'
-      if (aIsOther && !bIsOther) return 1
-      if (!aIsOther && bIsOther) return -1
-      return aKey.localeCompare(bKey)
+      // Get original VI category from the first item in each group to ensure consistent sorting across languages
+      const aCatVi = (a[1][0]?.category || 'Other').toLowerCase()
+      const bCatVi = (b[1][0]?.category || 'Other').toLowerCase()
+
+      const priorityCats = ['ưu đãi hôm nay', 'dành cho bạn', 'món mới', 'best seller', 'new', 'hot']
+      const toppingCats = ['chọn topping thêm', 'topping']
+
+      const aIsTopping = toppingCats.some(tc => aCatVi.includes(tc))
+      const bIsTopping = toppingCats.some(tc => bCatVi.includes(tc))
+      if (aIsTopping && !bIsTopping) return 1
+      if (!aIsTopping && bIsTopping) return -1
+
+      const aIsPriority = priorityCats.some(pc => aCatVi.includes(pc))
+      const bIsPriority = priorityCats.some(pc => bCatVi.includes(pc))
+      if (aIsPriority && !bIsPriority) return -1
+      if (!aIsPriority && bIsPriority) return 1
+
+      // Fallback to sorting by the displayed category name
+      return a[0].localeCompare(b[0])
     })
     return entries
   }, [filteredDrinks, lang, tmap])
