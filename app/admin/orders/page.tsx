@@ -152,6 +152,7 @@ function OrdersInner() {
                 <th className="text-left p-2">Event</th>
                 <th className="text-left p-2">Person</th>
                 <th className="text-left p-2">Drink</th>
+                <th className="text-left p-2">Options</th>
                 <th className="text-left p-2">Qty</th>
                 <th className="text-left p-2">Status</th>
                 <th className="text-left p-2">Actions</th>
@@ -164,6 +165,7 @@ function OrdersInner() {
                   <td className="p-2">{o.event?.name || '—'}</td>
                   <td className="p-2">{o.person_name}</td>
                   <td className="p-2">{o.drink?.name || '—'}</td>
+                  <td className="p-2 text-xs text-slate-500 whitespace-pre-wrap">{o.notes || '—'}</td>
                   <td className="p-2">{o.quantity}</td>
                   <td className="p-2">{o.status}</td>
                   <td className="p-2">
