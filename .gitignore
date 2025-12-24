@@ -23,3 +23,22 @@ pnpm-debug.log*
 dist
 coverage
 
+# Data & Docs
+*.txt
+*.md
+!README.md
+*.sql
+*.json
+!package.json
+!tsconfig.json
+!next.config.mjs
+!vercel.json
+!package-lock.json
+!chulong.json
+!crane-tea.json
+!gongcha-grab.json
+!hongtra.json
+!maycha.json
+!menu.json
+!redux_dump.json
+

@@ -70,24 +70,58 @@ async function fetchHtml(url) {
 
 async function fetchHtmlHeadless(url, { waitUntil = 'networkidle', waitSelector, timeoutMs = 30000, ua }) {
   let browserType = 'playwright'
+  let capturedJson = null
   try {
     const { chromium } = await import('playwright')
     const browser = await chromium.launch({ headless: true })
     const context = await browser.newContext({ userAgent: ua || defaultUA() })
     const page = await context.newPage()
+
+    // Intercept GrabFood API responses
+    page.on('response', async response => {
+      const u = response.url()
+      if (u.includes('portal.grab.com') && u.includes('merchants/')) {
+        try {
+          const ct = response.headers()['content-type'] || ''
+          if (ct.includes('json')) {
+            const json = await response.json()
+            if (json && (json.merchant || json.menu)) {
+              capturedJson = json
+            }
+          }
+        } catch {}
+      }
+    })
+
     await page.goto(url, { waitUntil: mapWaitUntil(waitUntil), timeout: timeoutMs })
     if (waitSelector) {
       await page.waitForSelector(waitSelector, { timeout: timeoutMs })
     }
     const html = await page.content()
     await browser.close()
-    return html
+    return { html, capturedJson }
   } catch (e1) {
     try {
       const puppeteer = (await import('puppeteer')).default || (await import('puppeteer')).puppeteer || await import('puppeteer')
       const browser = await puppeteer.launch({ headless: 'new' })
       const page = await browser.newPage()
       await page.setUserAgent(ua || defaultUA())
+
+      page.on('response', async response => {
+        const u = response.url()
+        if (u.includes('portal.grab.com') && u.includes('merchants/')) {
+          try {
+            const ct = response.headers()['content-type'] || ''
+            if (ct.includes('json')) {
+              const json = await response.json()
+              if (json && (json.merchant || json.menu)) {
+                capturedJson = json
+              }
+            }
+          } catch {}
+        }
+      })
+
       await page.goto(url, { waitUntil: mapPuppeteerWaitUntil(waitUntil), timeout: timeoutMs })
       if (waitSelector) {
         await page.waitForSelector(waitSelector, { timeout: timeoutMs })
@@ -95,7 +129,7 @@ async function fetchHtmlHeadless(url, { waitUntil = 'networkidle', waitSelector,
       const html = await page.content()
       await browser.close()
       browserType = 'puppeteer'
-      return html
+      return { html, capturedJson }
     } catch (e2) {
       throw new Error(`Headless fetch failed. Install 'playwright' (recommended) or 'puppeteer'.\nPlaywright error: ${e1?.message}\nPuppeteer error: ${e2?.message}`)
     }
@@ -397,16 +431,43 @@ async function main() {
     const payload = JSON.parse(raw)
     url = url || payload?.meta?.source_url || ''
     host = payload?.meta?.host || (url ? (new URL(url)).host : '')
-    items = Array.isArray(payload?.items) ? payload.items : []
+    // Support direct GrabFood API JSON structure if passed manually
+    if (payload.merchant && payload.merchant.menu) {
+      items = extractGrabFoodItems(payload.merchant)
+    } else {
+      items = Array.isArray(payload?.items) ? payload.items : []
+    }
     if (!items.length) throw new Error('No items in JSON')
   } else {
     url = args.url
     console.error(`Fetching: ${url}${args.headless ? ' (headless)' : ''}`)
-    html = args.headless
-      ? await fetchHtmlHeadless(url, { waitUntil: args.waitUntil, waitSelector: args.waitSelector, timeoutMs: args.timeoutMs, ua: args.ua })
-      : await fetchHtml(url)
-    const nextData = parseNextData(html)
-    if (!nextData) throw new Error('Could not locate embedded __NEXT_DATA__')
+    let capturedJson = null
+    if (args.headless) {
+       const res = await fetchHtmlHeadless(url, { waitUntil: args.waitUntil, waitSelector: args.waitSelector, timeoutMs: args.timeoutMs, ua: args.ua })
+       html = res.html
+       capturedJson = res.capturedJson
+    } else {
+       html = await fetchHtml(url)
+    }
+    
+    let nextData = parseNextData(html)
+    
+    // If no data in __NEXT_DATA__, try captured JSON
+    if (!nextData && capturedJson) {
+      console.error('Using captured API JSON')
+      nextData = capturedJson
+    } else if (nextData && capturedJson && host.includes('grab.com')) {
+       // Prefer captured JSON for GrabFood as it is more likely to be complete/up-to-date than SSR state if SSR is empty
+       // But check if nextData is empty first?
+       const test = extractGrabFoodItems(nextData)
+       if (!test.length) {
+         console.error('__NEXT_DATA__ yielded no items, using captured API JSON')
+         nextData = capturedJson
+       }
+    }
+
+    if (!nextData) throw new Error('Could not locate embedded __NEXT_DATA__ and no API JSON intercepted')
+    
     host = (() => { try { return new URL(url).host } catch { return '' } })()
     items = host.includes('grab.com')
       ? (extractGrabFoodItems(nextData) || [])

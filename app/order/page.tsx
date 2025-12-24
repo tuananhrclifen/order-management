@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import type { Drink, Event } from '@/lib/types'
 import { formatPriceVND } from '@/lib/format'
+import ChristmasDecor from '@/components/ChristmasDecor'
 
 type OrderForm = { person_name: string }
 
@@ -227,15 +228,24 @@ export default function OrderPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Place an Order</h1>
-        <p className="text-sm text-slate-600">Select an event, add quantities, and submit.</p>
-      </div>
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-100 via-slate-50 to-emerald-50/30 p-4 sm:p-6 rounded-3xl relative overflow-hidden">
+      <ChristmasDecor />
+      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-500 via-green-500 to-red-500" />
+      
+      <div className="space-y-6 relative z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-red-700 drop-shadow-sm flex items-center gap-2">
+              <span>🎄</span> Place an Order
+            </h1>
+            <p className="text-sm text-slate-600 mt-1">Select an event, add quantities, and submit.</p>
+          </div>
+          <div className="text-2xl animate-bounce">🎅</div>
+        </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm">Event</label>
-        <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="px-3 py-2 border rounded">
+        <label className="text-sm font-medium text-slate-700">Event</label>
+        <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="px-3 py-2 border rounded shadow-sm bg-white/80 backdrop-blur">
           {events.map(ev => (
             <option key={ev.id} value={ev.id}>{ev.name}</option>
           ))}
@@ -245,19 +255,19 @@ export default function OrderPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or category"
-            className="px-3 py-2 border rounded w-64"
+            className="px-3 py-2 border rounded w-64 shadow-sm bg-white/80 backdrop-blur focus:ring-red-200"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="text-sm px-3 py-2 border rounded hover:bg-slate-50">Clear</button>
+            <button onClick={() => setSearch('')} className="text-sm px-3 py-2 border rounded hover:bg-slate-50 bg-white/80">Clear</button>
           )}
         </div>
       </div>
 
-      <div className="grid gap-3 p-4 border rounded bg-white">
-        {message && <p className="text-sm text-green-700">{message}</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="grid gap-3 p-4 border rounded-xl bg-white/90 shadow-sm backdrop-blur-sm border-red-100">
+        {message && <p className="text-sm text-green-700 font-medium flex items-center gap-2">✅ {message}</p>}
+        {error && <p className="text-sm text-red-600 font-medium flex items-center gap-2">⚠️ {error}</p>}
         {tloading && (lang === 'ja' || lang === 'en') && (
-          <p className="text-sm text-slate-600">Translating...</p>
+          <p className="text-sm text-slate-600 animate-pulse">Translating...</p>
         )}
         <input
           className={nameInputClasses}
@@ -279,37 +289,42 @@ export default function OrderPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1fr_320px] pb-32 xl:pb-0">
         <div className="grid gap-4 order-2 xl:order-1">
-          {loading && <p className="text-sm">Loading...</p>}
+          {loading && <p className="text-sm animate-pulse">Loading menu...</p>}
           {!loading && filteredDrinks.length === 0 && (
-            <p className="text-sm text-slate-600">No items match your search.</p>
+            <div className="text-center py-10">
+               <p className="text-4xl mb-2">🎁</p>
+               <p className="text-slate-600">No items match your search.</p>
+            </div>
           )}
           {!loading && grouped.map(([category, items]) => (
             <div key={category} className="space-y-3">
-              <h3 className="text-lg font-semibold text-slate-700">{category}</h3>
+              <h3 className="text-lg font-bold text-green-800 border-b border-green-200 pb-1 flex items-center gap-2">
+                <span className="text-red-500">❄</span> {category}
+              </h3>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {items.map(d => {
                   const qty = cart[d.id] || 0
                   const name = (lang === 'ja' || lang === 'en') ? (tmap[d.name] || d.name) : d.name
                   return (
-                    <div key={d.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border hover:shadow-sm">
-                      <div className="w-24 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+                    <div key={d.id} className="flex items-center gap-4 p-4 bg-white/95 rounded-xl border border-slate-100 hover:shadow-md transition-shadow hover:border-red-100 group">
+                      <div className="w-24 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 relative">
                         {d.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={d.image_url} alt={d.name} className="w-full h-full object-cover" />
+                          <img src={d.image_url} alt={d.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">No image</div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium flex items-center gap-2 whitespace-normal break-words">
-                          <span className="whitespace-normal break-words">{name}</span>
+                        <p className="font-medium flex items-center gap-2 whitespace-normal break-words text-slate-800">
+                          <span className="whitespace-normal break-words leading-tight">{name}</span>
                           {lang !== 'vi' && (
                             <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
                               {lang === 'ja' ? 'JP' : 'EN'}
                             </span>
                           )}
                         </p>
-                        <p className="text-slate-600 mt-2 font-semibold">{formatPriceVND(d.price)}</p>
+                        <p className="text-red-600 mt-2 font-bold">{formatPriceVND(d.price)}</p>
                       </div>
                       <div className="ml-auto flex items-center gap-2">
                         <button
@@ -321,7 +336,7 @@ export default function OrderPage() {
                         <span className="min-w-[1.5rem] text-center font-medium">{qty}</span>
                         <button
                           onClick={() => increment(d.id)}
-                          className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-xl hover:bg-emerald-600"
+                          className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-emerald-600 text-white text-xl hover:bg-emerald-700 shadow-sm hover:shadow"
                           aria-label={`Increase ${d.name}`}
                         >+</button>
                       </div>
@@ -334,40 +349,41 @@ export default function OrderPage() {
         </div>
 
         <div className="order-1 xl:order-2 w-full">
-          <div className="grid gap-3 p-4 bg-white border-t border-slate-200 shadow-lg sticky bottom-0 z-30 sm:border sm:rounded-lg sm:shadow-lg xl:shadow-sm xl:sticky xl:top-4 xl:bottom-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Cart Summary</h2>
-              <div className="text-sm text-slate-600">{totals.totalQty} items</div>
+          <div className="grid gap-3 p-4 bg-white/95 border-t border-red-100 shadow-xl sticky bottom-0 z-30 sm:border sm:rounded-xl sm:shadow-lg xl:shadow-sm xl:sticky xl:top-4 xl:bottom-auto backdrop-blur-md">
+            <div className="flex items-center justify-between border-b border-dashed border-slate-200 pb-3">
+              <h2 className="font-bold text-slate-800">🎁 Cart Summary</h2>
+              <div className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded-full">{totals.totalQty} items</div>
             </div>
 
             {cartItems.length === 0 ? (
-              <p className="text-sm text-slate-500">Your cart is empty. Add some drinks.</p>
+              <div className="text-center py-6 text-slate-500">
+                <p className="text-2xl mb-1">🛒</p>
+                <p className="text-sm">Your cart is empty.</p>
+              </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
                 {cartItems.map(it => {
                   const name = (lang === 'ja' || lang === 'en') ? (tmap[it.drink.name] || it.drink.name) : it.drink.name
                   return (
-                  <div key={it.id} className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="flex items-center gap-2 whitespace-normal break-words">
+                  <div key={it.id} className="flex items-center justify-between text-sm">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="flex items-center gap-2 whitespace-normal break-words leading-tight">
                         <span className="whitespace-normal break-words">{name}</span>
-                        {lang !== 'vi' && (
-                          <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
-                            {lang === 'ja' ? 'JP' : 'EN'}
-                          </span>
-                        )}
                       </p>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-slate-600">x{it.quantity}</div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-xs text-slate-500 font-mono">x{it.quantity}</div>
                       <div className="font-medium">{formatPriceVND(it.lineTotal)}</div>
                     </div>
                   </div>
                 )})}
-                <div className="pt-2 mt-2 border-t flex items-center justify-between">
-                  <div className="text-sm text-slate-600">Total</div>
-                  <div className="text-lg font-semibold">{formatPriceVND(totals.totalPrice)}</div>
-                </div>
+              </div>
+            )}
+            
+            {cartItems.length > 0 && (
+              <div className="pt-3 mt-1 border-t border-slate-200 flex items-center justify-between">
+                <div className="text-sm text-slate-600 font-medium">Total</div>
+                <div className="text-lg font-bold text-red-600">{formatPriceVND(totals.totalPrice)}</div>
               </div>
             )}
 
@@ -375,20 +391,22 @@ export default function OrderPage() {
               <button
                 onClick={submitCart}
                 disabled={submitting || cartItems.length === 0 || !form.person_name.trim()}
-                className={`px-4 py-2 rounded text-white ${submitting || cartItems.length === 0 || !form.person_name.trim() ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                className={`flex-1 px-4 py-3 rounded-xl text-white font-bold shadow-md transition-all ${submitting || cartItems.length === 0 || !form.person_name.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 hover:shadow-lg hover:-translate-y-0.5'}`}
               >
-                {submitting ? 'Submitting...' : 'Submit Order'}
+                {submitting ? 'Sending to Santa...' : 'Submit Order 🎅'}
               </button>
               {cartItems.length > 0 && (
                 <button
                   onClick={() => setCart({})}
                   disabled={submitting}
-                  className="px-3 py-2 rounded border text-slate-700 hover:bg-slate-50"
-                >Clear</button>
+                  className="px-3 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                  aria-label="Clear cart"
+                >🗑️</button>
               )}
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
