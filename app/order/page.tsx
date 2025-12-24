@@ -21,6 +21,7 @@ export default function OrderPage() {
   const [form, setForm] = useState<OrderForm>({ person_name: '' })
   const [nameTouched, setNameTouched] = useState(false)
   const [cart, setCart] = useState<Cart>({})
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, { size: string, sugar: string }>>({})
   const [search, setSearch] = useState('')
 
   // Language and translations
@@ -33,8 +34,8 @@ export default function OrderPage() {
 
   // Cache helpers for translations
   const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7 // 7 days
-  const cacheKey = (evId: string, target: string) => `ddos.tmap.${evId || 'none'}.${target}`
-  const loadCache = (evId: string, target: string, sig: string): Record<string, string> | null => {
+  const cacheKey = useMemo(() => (evId: string, target: string) => `ddos.tmap.${evId || 'none'}.${target}`, [])
+  const loadCache = useMemo(() => (evId: string, target: string, sig: string): Record<string, string> | null => {
     try {
       const raw = localStorage.getItem(cacheKey(evId, target))
       if (!raw) return null
@@ -45,12 +46,10 @@ export default function OrderPage() {
       if (!obj.map || typeof obj.map !== 'object') return null
       return obj.map as Record<string, string>
     } catch { return null }
-  }
-  const saveCache = (evId: string, target: string, sig: string, map: Record<string, string>) => {
+  }, [cacheKey, CACHE_TTL_MS])
+  const saveCache = useMemo(() => (evId: string, target: string, sig: string, map: Record<string, string>) => {
     try { localStorage.setItem(cacheKey(evId, target), JSON.stringify({ ts: Date.now(), sig, map })) } catch {}
-  }
-
-  const selectedEvent = useMemo(() => events.find(e => e.id === eventId) || null, [events, eventId])
+  }, [cacheKey])
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -63,7 +62,7 @@ export default function OrderPage() {
       if (!eventId && data && data.length) setEventId(data[0].id)
     }
     loadEvents()
-  }, [])
+  }, [eventId])
 
   // Listen to language changes from header switch
   useEffect(() => {
@@ -86,10 +85,16 @@ export default function OrderPage() {
         .order('name')
       setDrinks(data || [])
       setCart({})
+      setSelectedOptions({})
       setLoading(false)
     }
     loadDrinks()
   }, [eventId])
+
+  const getCompositeKey = (drinkId: string) => {
+    const opts = selectedOptions[drinkId] || { size: 'M', sugar: '70%' }
+    return `${drinkId}|${opts.size}|${opts.sugar}`
+  }
 
   // When lang is JA/EN, fetch translations for names + categories (with local cache)
   useEffect(() => {
@@ -121,33 +126,53 @@ export default function OrderPage() {
       finally { setTloading(false) }
     }
     fetchTranslations()
-  }, [lang, drinks])
+  }, [lang, drinks, eventId, loadCache, saveCache])
 
   const increment = (drinkId: string) => {
-    setCart(prev => ({ ...prev, [drinkId]: (prev[drinkId] || 0) + 1 }))
+    const key = getCompositeKey(drinkId)
+    setCart(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }))
     setMessage(null); setError(null)
   }
 
   const decrement = (drinkId: string) => {
+    const key = getCompositeKey(drinkId)
     setCart(prev => {
-      const current = prev[drinkId] || 0
+      const current = prev[key] || 0
       const next = Math.max(0, current - 1)
       const clone = { ...prev }
-      if (next === 0) delete clone[drinkId]
-      else clone[drinkId] = next
+      if (next === 0) delete clone[key]
+      else clone[key] = next
       return clone
     })
     setMessage(null); setError(null)
   }
 
+  const updateOption = (drinkId: string, type: 'size' | 'sugar', value: string) => {
+    setSelectedOptions(prev => ({
+      ...prev,
+      [drinkId]: {
+        ...(prev[drinkId] || { size: 'M', sugar: '70%' }),
+        [type]: value
+      }
+    }))
+  }
+
   const cartItems = useMemo(() => {
-    const map: { id: string; drink: Drink; quantity: number; lineTotal: number }[] = []
-    for (const [id, qty] of Object.entries(cart)) {
-      const drink = drinks.find(d => d.id === id)
+    const list: { id: string; drinkId: string; drink: Drink; quantity: number; lineTotal: number; options: { size: string; sugar: string } }[] = []
+    for (const [key, qty] of Object.entries(cart)) {
+      const [drinkId, size, sugar] = key.split('|')
+      const drink = drinks.find(d => d.id === drinkId)
       if (!drink || qty <= 0) continue
-      map.push({ id, drink, quantity: qty, lineTotal: qty * drink.price })
+      list.push({ 
+        id: key, 
+        drinkId,
+        drink, 
+        quantity: qty, 
+        lineTotal: qty * drink.price,
+        options: { size, sugar }
+      })
     }
-    return map.sort((a, b) => a.drink.name.localeCompare(b.drink.name))
+    return list.sort((a, b) => a.drink.name.localeCompare(b.drink.name))
   }, [cart, drinks])
 
   const totals = useMemo(() => {
@@ -212,11 +237,11 @@ export default function OrderPage() {
 
     const rows = cartItems.map(it => ({
       event_id: eventId,
-      drink_id: it.id,
+      drink_id: it.drinkId,
       person_name: form.person_name.trim(),
       quantity: it.quantity,
       status: 'pending' as const,
-      notes: null as string | null,
+      notes: `Size: ${it.options.size}, Sugar: ${it.options.sugar}`,
     }))
 
     setSubmitting(true)
@@ -303,42 +328,75 @@ export default function OrderPage() {
               </h3>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {items.map(d => {
-                  const qty = cart[d.id] || 0
+                  const key = getCompositeKey(d.id)
+                  const qty = cart[key] || 0
                   const name = (lang === 'ja' || lang === 'en') ? (tmap[d.name] || d.name) : d.name
+                  const currentOpts = selectedOptions[d.id] || { size: 'M', sugar: '70%' }
+                  
                   return (
-                    <div key={d.id} className="flex items-center gap-4 p-4 bg-white/95 rounded-xl border border-slate-100 hover:shadow-md transition-shadow hover:border-red-100 group">
-                      <div className="w-24 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 relative">
-                        {d.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={d.image_url} alt={d.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">No image</div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium flex items-center gap-2 whitespace-normal break-words text-slate-800">
-                          <span className="whitespace-normal break-words leading-tight">{name}</span>
-                          {lang !== 'vi' && (
-                            <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
-                              {lang === 'ja' ? 'JP' : 'EN'}
-                            </span>
+                    <div key={d.id} className="flex flex-col p-4 bg-white/95 rounded-xl border border-slate-100 hover:shadow-md transition-shadow hover:border-red-100 group">
+                      <div className="flex items-center gap-4">
+                        <div className="w-20 h-24 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 relative">
+                          {d.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={d.image_url} alt={d.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">No image</div>
                           )}
-                        </p>
-                        <p className="text-red-600 mt-2 font-bold">{formatPriceVND(d.price)}</p>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium flex items-center gap-2 whitespace-normal break-words text-slate-800">
+                            <span className="whitespace-normal break-words leading-tight">{name}</span>
+                            {lang !== 'vi' && (
+                              <span className="shrink-0 inline-flex items-center rounded bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
+                                {lang === 'ja' ? 'JP' : 'EN'}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-red-600 mt-1 font-bold">{formatPriceVND(d.price)}</p>
+                        </div>
+                        <div className="ml-auto flex items-center gap-2">
+                          <button
+                            onClick={() => decrement(d.id)}
+                            className={`w-8 h-8 inline-flex items-center justify-center rounded-full border ${qty === 0 ? 'text-slate-300 border-slate-200 cursor-not-allowed' : 'text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                            aria-label={`Decrease ${d.name}`}
+                            disabled={qty === 0}
+                          >-</button>
+                          <span className="min-w-[1.2rem] text-center font-medium">{qty}</span>
+                          <button
+                            onClick={() => increment(d.id)}
+                            className="w-8 h-8 inline-flex items-center justify-center rounded-full bg-emerald-600 text-white text-xl hover:bg-emerald-700 shadow-sm hover:shadow"
+                            aria-label={`Increase ${d.name}`}
+                          >+</button>
+                        </div>
                       </div>
-                      <div className="ml-auto flex items-center gap-2">
-                        <button
-                          onClick={() => decrement(d.id)}
-                          className={`w-9 h-9 inline-flex items-center justify-center rounded-full border ${qty === 0 ? 'text-slate-300 border-slate-200 cursor-not-allowed' : 'text-slate-700 border-slate-300 hover:bg-slate-50'}`}
-                          aria-label={`Decrease ${d.name}`}
-                          disabled={qty === 0}
-                        >-</button>
-                        <span className="min-w-[1.5rem] text-center font-medium">{qty}</span>
-                        <button
-                          onClick={() => increment(d.id)}
-                          className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-emerald-600 text-white text-xl hover:bg-emerald-700 shadow-sm hover:shadow"
-                          aria-label={`Increase ${d.name}`}
-                        >+</button>
+
+                      {/* Options Selection */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-50">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chọn SIZE</label>
+                          <select 
+                            value={currentOpts.size}
+                            onChange={(e) => updateOption(d.id, 'size', e.target.value)}
+                            className="w-full text-xs bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-emerald-200 outline-none"
+                          >
+                            <option value="M">Size M</option>
+                            <option value="L">Size L</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mức đường</label>
+                          <select 
+                            value={currentOpts.sugar}
+                            onChange={(e) => updateOption(d.id, 'sugar', e.target.value)}
+                            className="w-full text-xs bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-emerald-200 outline-none"
+                          >
+                            <option value="70%">70%</option>
+                            <option value="50%">50%</option>
+                            <option value="30%">30%</option>
+                            <option value="0%">0%</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   )
@@ -361,19 +419,24 @@ export default function OrderPage() {
                 <p className="text-sm">Your cart is empty.</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
                 {cartItems.map(it => {
                   const name = (lang === 'ja' || lang === 'en') ? (tmap[it.drink.name] || it.drink.name) : it.drink.name
                   return (
-                  <div key={it.id} className="flex items-center justify-between text-sm">
-                    <div className="flex-1 min-w-0 pr-2">
-                      <p className="flex items-center gap-2 whitespace-normal break-words leading-tight">
-                        <span className="whitespace-normal break-words">{name}</span>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-xs text-slate-500 font-mono">x{it.quantity}</div>
-                      <div className="font-medium">{formatPriceVND(it.lineTotal)}</div>
+                  <div key={it.id} className="flex flex-col text-sm border-b border-slate-50 pb-2 last:border-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <p className="font-medium text-slate-800 whitespace-normal break-words leading-tight">
+                          {name}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {it.options.size} • {it.options.sugar} đường
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-xs text-slate-500 font-mono">x{it.quantity}</div>
+                        <div className="font-medium">{formatPriceVND(it.lineTotal)}</div>
+                      </div>
                     </div>
                   </div>
                 )})}
