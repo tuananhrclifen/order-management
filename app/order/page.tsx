@@ -92,7 +92,7 @@ export default function OrderPage() {
   }, [eventId])
 
   const getCompositeKey = (drinkId: string) => {
-    const opts = selectedOptions[drinkId] || { size: 'M', sugar: '70%' }
+    const opts = selectedOptions[drinkId] || { size: 'M', sugar: '100%' }
     return `${drinkId}|${opts.size}|${opts.sugar}`
   }
 
@@ -151,7 +151,7 @@ export default function OrderPage() {
     setSelectedOptions(prev => ({
       ...prev,
       [drinkId]: {
-        ...(prev[drinkId] || { size: 'M', sugar: '70%' }),
+        ...(prev[drinkId] || { size: 'M', sugar: '100%' }),
         [type]: value
       }
     }))
@@ -331,7 +331,7 @@ export default function OrderPage() {
                   const key = getCompositeKey(d.id)
                   const qty = cart[key] || 0
                   const name = (lang === 'ja' || lang === 'en') ? (tmap[d.name] || d.name) : d.name
-                  const currentOpts = selectedOptions[d.id] || { size: 'M', sugar: '70%' }
+                  const currentOpts = selectedOptions[d.id] || { size: 'M', sugar: '100%' }
                   
                   return (
                     <div key={d.id} className="flex flex-col p-4 bg-white/95 rounded-xl border border-slate-100 hover:shadow-md transition-shadow hover:border-red-100 group">
@@ -391,6 +391,7 @@ export default function OrderPage() {
                             onChange={(e) => updateOption(d.id, 'sugar', e.target.value)}
                             className="w-full text-xs bg-slate-50 border-none rounded-md px-2 py-1 focus:ring-1 focus:ring-emerald-200 outline-none"
                           >
+                            <option value="100%">100%</option>
                             <option value="70%">70%</option>
                             <option value="50%">50%</option>
                             <option value="30%">30%</option>
